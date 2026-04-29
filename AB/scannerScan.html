@@ -8,7 +8,7 @@
 <style>
 body {
     font-family: Arial;
-    background: rgb(0,0,0);
+    background: black;
     color: rgb(255,224,0);
     margin: 0;
     padding: 0;
@@ -18,7 +18,7 @@ body {
 }
 
 /* =========================
-   TOP 40% WORK AREA
+   TOP 40% PANEL
 ========================= */
 #topPanel {
     position: fixed;
@@ -36,7 +36,7 @@ body {
 }
 
 /* =========================
-   BOTTOM TABLE
+   BOTTOM 60% TABLE AREA
 ========================= */
 #resultTable {
     position: fixed;
@@ -47,7 +47,7 @@ body {
     overflow-y: auto;
 }
 
-/* TEXT */
+/* HEADER */
 h2 {
     text-align: center;
     font-size: 20px;
@@ -95,7 +95,7 @@ th {
     color: black;
 }
 
-/* AUTOCOMPLETE BOX */
+/* AUTOCOMPLETE */
 .suggestionBox {
     position: absolute;
     background: black;
@@ -111,6 +111,7 @@ th {
     border-bottom: 1px solid rgb(255,224,0);
 }
 
+/* HIDE */
 .hidden { display: none; }
 
 /* ERROR */
@@ -129,16 +130,22 @@ th {
 <h2>Scan Items</h2>
 
 <!-- =========================
-   SKU INPUT + GOOGLE FILTER
+   SKU PHASE
 ========================= -->
-<div style="position:relative;">
-    <input type="text" id="sku" placeholder="Enter SKU">
-    <div id="suggestionBox" class="suggestionBox hidden"></div>
+<div id="skuPhase">
+
+    <div style="position:relative;">
+        <input type="text" id="sku" placeholder="Enter SKU">
+        <div id="suggestionBox" class="suggestionBox hidden"></div>
+    </div>
+
+    <button onclick="startScanning()">Start Scanning</button>
 </div>
 
-<button onclick="startScanning()">Start Scanning</button>
-
-<div id="scanSection" class="hidden">
+<!-- =========================
+   SCAN PHASE
+========================= -->
+<div id="scanPhase" class="hidden">
 
     <p><strong>SKU:</strong> <span id="skuDisplay"></span></p>
 
@@ -148,23 +155,26 @@ th {
 
     <input type="text" id="scanInput" placeholder="Scan..." autofocus>
 
+    <button onclick="toggleTable()">View / Hide Table</button>
+
     <div id="errorMsg"></div>
+
 </div>
 
 </div>
 
 <!-- =========================
-   TABLE
+   TABLE (HIDDEN BY DEFAULT)
 ========================= -->
 <div id="resultTable" class="hidden">
     <table>
         <thead>
-            <tr>
-                <th>SKU</th>
-                <th>LOT</th>
-                <th>EXP</th>
-                <th>QTY</th>
-            </tr>
+        <tr>
+            <th>SKU</th>
+            <th>LOT</th>
+            <th>EXP</th>
+            <th>QTY</th>
+        </tr>
         </thead>
         <tbody></tbody>
     </table>
@@ -173,7 +183,7 @@ th {
 <script>
 
 /* =========================
-   GOOGLE SHEET SKU LOAD
+   GOOGLE SHEET SKU LIST
 ========================= */
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcNmdR8CzUL7BKaZkdrUttj8u9z73q6ThlT2h_6c5ua_dtbb6D93O-80vFDR3OwS-OcdXH_2NWhikf/pub?output=csv";
 let skuList = [];
@@ -195,7 +205,7 @@ async function loadSKUs() {
 loadSKUs();
 
 /* =========================
-   AUTOCOMPLETE (RESTORED)
+   AUTOCOMPLETE
 ========================= */
 const skuInput = document.getElementById("sku");
 const suggestionBox = document.getElementById("suggestionBox");
@@ -203,19 +213,13 @@ const suggestionBox = document.getElementById("suggestionBox");
 skuInput.addEventListener("input", function () {
     const val = this.value.toLowerCase().trim();
 
-    if (!val) {
-        suggestionBox.classList.add("hidden");
-        return;
-    }
+    if (!val) return suggestionBox.classList.add("hidden");
 
     const matches = skuList
         .filter(s => s.toLowerCase().includes(val))
         .slice(0, 10);
 
-    if (!matches.length) {
-        suggestionBox.classList.add("hidden");
-        return;
-    }
+    if (!matches.length) return suggestionBox.classList.add("hidden");
 
     suggestionBox.innerHTML = "";
     suggestionBox.classList.remove("hidden");
@@ -235,7 +239,7 @@ skuInput.addEventListener("input", function () {
 });
 
 document.addEventListener("click", e => {
-    if (!e.target.closest("#topPanel")) {
+    if (!e.target.closest("#skuPhase")) {
         suggestionBox.classList.add("hidden");
     }
 });
@@ -254,24 +258,31 @@ let lastInputTime = Date.now();
 let currentSKU = "";
 
 /* =========================
-   START SCANNING (UNCHANGED LOGIC)
+   START SCANNING
 ========================= */
 function startScanning() {
     const sku = skuInput.value.trim();
-    if (!sku) return alert("Enter SKU first");
+    if (!sku) return alert("Enter SKU");
 
     currentSKU = sku;
 
-    document.getElementById('skuDisplay').innerText = sku;
+    document.getElementById("skuDisplay").innerText = sku;
 
-    document.getElementById('scanSection').classList.remove('hidden');
-    document.getElementById('resultTable').classList.remove('hidden');
+    document.getElementById("skuPhase").classList.add("hidden");
+    document.getElementById("scanPhase").classList.remove("hidden");
 
     scanInput.focus();
 }
 
 /* =========================
-   SCANNER ENGINE (UNCHANGED)
+   TOGGLE TABLE
+========================= */
+function toggleTable() {
+    document.getElementById("resultTable").classList.toggle("hidden");
+}
+
+/* =========================
+   SCANNER INPUT (UNCHANGED BEHAVIOR)
 ========================= */
 scanInput.addEventListener('input', function () {
     const now = Date.now();
@@ -290,14 +301,16 @@ scanInput.addEventListener('input', function () {
     }, 50);
 });
 
-/* ERROR */
-function showError(message) {
-    errorMsg.innerText = message;
+/* =========================
+   ERROR BEEP
+========================= */
+function showError(msg) {
+    errorMsg.innerText = msg;
     setTimeout(() => errorMsg.innerText = '', 1500);
 }
 
 /* =========================
-   BARCODE LOGIC (UNCHANGED)
+   BARCODE ENGINE (UNCHANGED)
 ========================= */
 function processScan(raw) {
     if (!raw) return;
@@ -316,12 +329,6 @@ function processScan(raw) {
     if (expIndex !== -1 && working.length >= expIndex + 8) {
         const expRaw = working.substr(expIndex + 2, 6);
         exp = `20${expRaw.slice(0,2)}-${expRaw.slice(2,4)}-${expRaw.slice(4,6)}`;
-        working = working.substring(0, expIndex) + working.substring(expIndex + 8);
-    }
-
-    let mfgIndex = working.indexOf('11');
-    if (mfgIndex !== -1 && working.length >= mfgIndex + 8) {
-        working = working.substring(0, mfgIndex) + working.substring(mfgIndex + 8);
     }
 
     let lotIndex = working.indexOf('10');
@@ -337,10 +344,7 @@ function processScan(raw) {
         lot = value;
     }
 
-    if (!lot) {
-        showError("Invalid barcode scanned");
-        return;
-    }
+    if (!lot) return showError("Invalid barcode");
 
     const key = currentSKU + "|" + lot + "|" + exp;
 
@@ -353,7 +357,9 @@ function processScan(raw) {
     renderTable();
 }
 
-/* TABLE */
+/* =========================
+   TABLE RENDER
+========================= */
 function renderTable() {
     tableBody.innerHTML = '';
 

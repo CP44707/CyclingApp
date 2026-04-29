@@ -101,7 +101,6 @@ const warehouse = localStorage.getItem("warehouse");
 const task = localStorage.getItem("task");
 
 if (!warehouse || task !== "Cycling") {
-    // fallback safety
     window.location.href = "index.html";
 }
 
@@ -109,21 +108,8 @@ document.getElementById("warehouse").innerText = warehouse;
 
 const binInput = document.getElementById("bin");
 
-// keep input usable when keyboard opens
-binInput.addEventListener("focus", () => {
-    setTimeout(() => {
-        binInput.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 300);
-});
-
-// scanner auto-focus on load
-window.addEventListener("load", () => {
-    binInput.focus();
-});
-
 function startCycle() {
     const bin = binInput.value.trim();
-
     if (!bin) return;
 
     localStorage.setItem("bin", bin);
@@ -133,6 +119,26 @@ function startCycle() {
 
     window.location.href = "scannerScan.html";
 }
+
+// Auto-advance when scanner sends Enter
+binInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        startCycle();
+    }
+});
+
+// keep input visible when keyboard opens
+binInput.addEventListener("focus", () => {
+    setTimeout(() => {
+        binInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+});
+
+// auto-focus for scanner input
+window.addEventListener("load", () => {
+    binInput.focus();
+});
 </script>
 
 </body>

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scanner Counter</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: rgb(0,0,0);
+    color: rgb(255,224,0);
+    margin: 0;
+    padding: 12px;
+    font-size: 18px;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+h2 {
+    text-align: center;
+    font-size: 26px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+}
+
+.hidden { display: none; }
+
+label {
+    font-size: 18px;
+}
+
+input, select {
+    width: 100%;
+    font-size: 20px;
+    padding: 14px;
+    margin: 8px 0;
+    background: rgb(0,0,0);
+    color: rgb(255,224,0);
+    border: 2px solid rgb(255,224,0);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+input:focus, select:focus {
+    outline: none;
+    box-shadow: 0 0 8px rgb(255,224,0);
+}
+
+table {
+    border-collapse: collapse;
+    margin-top: 20px;
+    width: 100%;
+    font-size: 18px;
+}
+
+td, th {
+    border: 1px solid rgb(255,224,0);
+    padding: 10px;
+    text-align: center;
+}
+
+th {
+    background: rgb(255,224,0);
+    color: rgb(0,0,0);
+    font-size: 18px;
+}
+
+#errorMsg {
+    color: rgb(255,224,0);
+    margin-top: 12px;
+    font-size: 18px;
+    text-align: center;
+    min-height: 24px;
+}
+
+.topButtons {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+button {
+    padding: 18px;
+    font-size: 20px;
+    cursor: pointer;
+    background: rgb(0,0,0);
+    color: rgb(255,224,0);
+    border: 2px solid rgb(255,224,0);
+    border-radius: 8px;
+    touch-action: manipulation;
+}
+
+button:active {
+    background: rgb(255,224,0);
+    color: rgb(0,0,0);
+}
+
+/* =========================
+   SKU SUGGESTIONS
+========================= */
+.suggestions {
+    position: relative;
+}
+
+.suggestionBox {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: black;
+    border: 2px solid rgb(255,224,0);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 999;
+}
+
+.suggestionItem {
+    padding: 12px;
+    font-size: 18px;
+    border-bottom: 1px solid rgb(255,224,0);
+    cursor: pointer;
+}
+
+.suggestionItem:active {
+    background: rgb(255,224,0);
+    color: black;
+}
+
+/* =========================
+   LAYOUT
+========================= */
+#skuSection, #scanSection {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* =========================
+   MODAL
+========================= */
+#manualModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+#manualBox {
+    background: rgb(0,0,0);
+    padding: 20px;
+    width: 100%;
+    max-width: 420px;
+    border: 2px solid rgb(255,224,0);
+    border-radius: 10px;
+}
+
+#manualBox h3 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Scan Items</h2>
+
+<!-- =========================
+     SKU SECTION
+========================= -->
+<div id="skuSection">
+    <label>Enter SKU:</label><br>
+
+    <div class="suggestions">
+        <input type="text" id="sku" autocomplete="off">
+        <div id="suggestionBox" class="suggestionBox hidden"></div>
+    </div>
+
+    <br><br>
+    <button onclick="startScanning()">Start Scanning</button>
+</div>
+
+<!-- =========================
+     SCAN SECTION
+========================= -->
+<div id="scanSection" class="hidden">
+
+    <p><strong>SKU:</strong> <span id="skuDisplay"></span></p>
+
+    <div class="topButtons">
+        <button onclick="nextSKU()">Next SKU</button>
+        <button onclick="completeBin()">Complete Bin</button>
+        <button onclick="openManual()">Manual Add LOT</button>
+    </div>
+
+    <p>Scan continuously...</p>
+    <input type="text" id="scanInput" autofocus>
+    <div id="errorMsg"></div>
+</div>
+
+<table id="resultTable" class="hidden">
+    <thead>
+        <tr>
+            <th>SKU</th>
+            <th>LOT</th>
+            <th>Expiration</th>
+            <th>Quantity</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<br>
+<button onclick="resetAll()">Reset</button>
+
+<!-- =========================
+     MANUAL ENTRY MODAL
+========================= -->
+<div id="manualModal">
+    <div id="manualBox">
+        <h3>Manual LOT Entry</h3>
+
+        <input id="mLot" placeholder="LOT">
+
+        <select id="mYear"></select>
+        <select id="mMonth"></select>
+        <select id="mDay"></select>
+
+        <input id="mQty" type="number" placeholder="Quantity">
+
+        <button onclick="addManual()">Add</button>
+        <button onclick="closeManual()">Cancel</button>
+    </div>
+</div>
+
+<script>
+
+/* =========================
+   GOOGLE SHEET SKU LOAD
+========================= */
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcNmdR8CzUL7BKaZkdrUttj8u9z73q6ThlT2h_6c5ua_dtbb6D93O-80vFDR3OwS-OcdXH_2NWhikf/pub?output=csv";
+let skuList = [];
+
+async function loadSKUs() {
+    try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+
+        skuList = text
+            .split("\n")
+            .map(r => r.split(",")[0]?.trim())
+            .filter(Boolean);
+
+    } catch (e) {
+        console.error("SKU load failed", e);
+    }
+}
+loadSKUs();
+
+/* =========================
+   SKU AUTOCOMPLETE
+========================= */
+const skuInput = document.getElementById("sku");
+const suggestionBox = document.getElementById("suggestionBox");
+
+skuInput.addEventListener("input", function () {
+    const val = this.value.trim().toLowerCase();
+
+    if (!val) {
+        suggestionBox.classList.add("hidden");
+        return;
+    }
+
+    const matches = skuList
+        .filter(s => s.toLowerCase().includes(val))
+        .slice(0, 10);
+
+    if (!matches.length) {
+        suggestionBox.classList.add("hidden");
+        return;
+    }
+
+    suggestionBox.innerHTML = "";
+    suggestionBox.classList.remove("hidden");
+
+    matches.forEach(sku => {
+        const div = document.createElement("div");
+        div.className = "suggestionItem";
+        div.innerText = sku;
+
+        div.onclick = () => {
+            skuInput.value = sku;
+            suggestionBox.classList.add("hidden");
+        };
+
+        suggestionBox.appendChild(div);
+    });
+});
+
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".suggestions")) {
+        suggestionBox.classList.add("hidden");
+    }
+});
+
+/* =========================
+   ORIGINAL LOGIC
+========================= */
+const scanInput = document.getElementById('scanInput');
+const tableBody = document.querySelector('#resultTable tbody');
+const errorMsg = document.getElementById('errorMsg');
+
+let dataStore = {};
+let buffer = '';
+let timer = null;
+let lastInputTime = Date.now();
+
+let currentSKU = "";
+
+/* START SCANNING (UPDATED WITH VALIDATION) */
+function startScanning() {
+    const sku = skuInput.value.trim();
+
+    if (!sku) return alert("Enter SKU first");
+
+    if (!skuList.includes(sku)) {
+        alert("SKU not found in master list");
+        return;
+    }
+
+    currentSKU = sku;
+
+    document.getElementById('skuDisplay').innerText = sku;
+
+    document.getElementById('skuSection').classList.add('hidden');
+    document.getElementById('scanSection').classList.remove('hidden');
+    document.getElementById('resultTable').classList.remove('hidden');
+
+    scanInput.focus();
+}
+
+/* ENTER SKU FLOW */
+skuInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter") startScanning();
+});
+
+/* AUTO SCAN */
+scanInput.addEventListener('input', function () {
+    const now = Date.now();
+    const diff = now - lastInputTime;
+    lastInputTime = now;
+
+    if (diff > 50) buffer = '';
+
+    buffer += scanInput.value;
+    scanInput.value = '';
+
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+        processScan(buffer);
+        buffer = '';
+    }, 50);
+});
+
+/* ERROR SOUND */
+function showError(message) {
+    errorMsg.innerText = message;
+    setTimeout(() => errorMsg.innerText = '', 1500);
+}
+
+/* PARSE SCAN */
+function processScan(raw) {
+    if (!raw) return;
+
+    const GS = String.fromCharCode(29);
+    let working = raw;
+
+    let exp = '';
+    let lot = '';
+
+    if (working.startsWith('01') && working.length >= 16) {
+        working = working.substr(16);
+    }
+
+    let expIndex = working.indexOf('17');
+    if (expIndex !== -1 && working.length >= expIndex + 8) {
+        const expRaw = working.substr(expIndex + 2, 6);
+        exp = `20${expRaw.slice(0,2)}-${expRaw.slice(2,4)}-${expRaw.slice(4,6)}`;
+        working = working.replace(working.substr(expIndex, 8), '');
+    }
+
+    let lotIndex = working.indexOf('10');
+    if (lotIndex !== -1) {
+        let i = lotIndex + 2;
+        let value = '';
+
+        while (i < working.length && working[i] !== GS) {
+            value += working[i];
+            i++;
+        }
+
+        lot = value;
+    }
+
+    if (!lot) {
+        showError("Invalid barcode scanned");
+        return;
+    }
+
+    const key = currentSKU + "|" + lot + "|" + exp;
+
+    if (!dataStore[key]) {
+        dataStore[key] = { sku: currentSKU, lot, exp, qty: 0 };
+    }
+
+    dataStore[key].qty++;
+
+    renderTable();
+}
+
+/* TABLE */
+function renderTable() {
+    tableBody.innerHTML = '';
+
+    Object.values(dataStore).forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.sku}</td>
+            <td>${item.lot}</td>
+            <td>${item.exp}</td>
+            <td>${item.qty}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+/* RESET */
+function resetAll() {
+    location.reload();
+}
+
+/* =========================
+   PLACEHOLDER FUNCTIONS (UNCHANGED)
+========================= */
+function nextSKU() {}
+function completeBin() {}
+function openManual() {}
+function closeManual() {}
+function addManual() {}
+
+</script>
+
+</body>
+</html>

@@ -1,49 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Menu</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f4f4f4;
-        }
-        .container {
-            width: 90%;
-            max-width: 400px;
-        }
-        button {
-            width: 100%;
-            padding: 20px;
-            margin: 15px 0;
-            font-size: 1.5em;
-            border: none;
-            border-radius: 10px;
-            background-color: #007BFF;
-            color: white;
-        }
-        button:active {
-            background-color: #0056b3;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <button onclick="selectOption('Cycling')">Cycling</button>
-        <button onclick="selectOption('Receiving')">Receiving</button>
-        <button onclick="selectOption('Picking')">Picking</button>
-    </div>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Scanner Start</title>
 
-    <script>
-        function selectOption(option) {
-            alert(option + " selected");
-        }
-    </script>
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: black;
+        color: rgb(255,224,0);
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    .container {
+        max-width: 500px;
+        margin: auto;
+        padding: 20px;
+    }
+
+    h2 {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .section-title {
+        font-size: 22px;
+        margin: 20px 0 10px;
+        text-align: center;
+        border-bottom: 1px solid rgb(255,224,0);
+        padding-bottom: 8px;
+    }
+
+    button {
+        width: 100%;
+        padding: 22px;
+        margin: 12px 0;
+        font-size: 24px;
+        background: black;
+        color: rgb(255,224,0);
+        border: 3px solid rgb(255,224,0);
+        border-radius: 12px;
+        touch-action: manipulation;
+    }
+
+    button:active {
+        background: rgb(255,224,0);
+        color: black;
+    }
+
+    .selected {
+        background: rgb(255,224,0);
+        color: black;
+    }
+
+    .disabled {
+        opacity: 0.3;
+        pointer-events: none;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h2>Scanner Menu</h2>
+
+    <div class="section-title">Select Warehouse</div>
+
+    <button onclick="selectWarehouse('AB')" id="abBtn">AB</button>
+    <button onclick="selectWarehouse('ON')" id="onBtn">ON</button>
+
+    <div class="section-title">Select Task</div>
+
+    <button onclick="selectTask('Cycling')" id="cycleBtn" class="disabled">Cycling</button>
+    <button onclick="selectTask('Receiving')" id="recvBtn" class="disabled">Receiving</button>
+    <button onclick="selectTask('Picking')" id="pickBtn" class="disabled">Picking</button>
+
+</div>
+
+<script>
+let selectedWarehouse = null;
+
+function selectWarehouse(wh) {
+    selectedWarehouse = wh;
+
+    localStorage.setItem("warehouse", wh);
+
+    // highlight selection
+    document.getElementById("abBtn").classList.remove("selected");
+    document.getElementById("onBtn").classList.remove("selected");
+
+    if (wh === "AB") document.getElementById("abBtn").classList.add("selected");
+    if (wh === "ON") document.getElementById("onBtn").classList.add("selected");
+
+    // enable task buttons
+    document.querySelectorAll(".disabled").forEach(btn => {
+        btn.classList.remove("disabled");
+    });
+}
+
+function selectTask(task) {
+    if (!selectedWarehouse) return;
+
+    localStorage.setItem("task", task);
+
+    // routing logic (expand later)
+    if (task === "Cycling") {
+        window.location.href = "startCycle.html";
+    }
+
+    if (task === "Receiving") {
+        window.location.href = "receiving.html";
+    }
+
+    if (task === "Picking") {
+        window.location.href = "picking.html";
+    }
+}
+</script>
+
 </body>
 </html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Cycle</title>
+
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: black;
+        color: rgb(255,224,0);
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    .container {
+        max-width: 520px;
+        margin: auto;
+        padding: 20px;
+    }
+
+    h2 {
+        text-align: center;
+        margin: 10px 0 20px;
+        font-size: 28px;
+    }
+
+    .info {
+        font-size: 20px;
+        margin: 10px 0;
+        text-align: center;
+    }
+
+    .label {
+        font-weight: bold;
+    }
+
+    input {
+        width: 100%;
+        font-size: 26px;
+        padding: 20px;
+        margin-top: 25px;
+        background: black;
+        color: rgb(255,224,0);
+        border: 2px solid rgb(255,224,0);
+        border-radius: 10px;
+        box-sizing: border-box;
+    }
+
+    input:focus {
+        outline: none;
+        box-shadow: 0 0 10px rgb(255,224,0);
+    }
+
+    button {
+        width: 100%;
+        font-size: 28px;
+        padding: 22px;
+        margin-top: 30px;
+        background: black;
+        color: rgb(255,224,0);
+        border: 3px solid rgb(255,224,0);
+        border-radius: 12px;
+        touch-action: manipulation;
+    }
+
+    button:active {
+        background: rgb(255,224,0);
+        color: black;
+    }
+
+    .spacer {
+        height: 35vh;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h2>Start Cycle</h2>
+
+    <div class="info">
+        <div><span class="label">Warehouse:</span> <span id="warehouse"></span></div>
+        <div><span class="label">Task:</span> Cycling</div>
+    </div>
+
+    <input id="bin" placeholder="Scan or Enter Bin Location" autofocus>
+
+    <button onclick="startCycle()">Start Scanning</button>
+
+    <div class="spacer"></div>
+
+</div>
+
+<script>
+const warehouse = localStorage.getItem("warehouse");
+const task = localStorage.getItem("task");
+
+if (!warehouse || task !== "Cycling") {
+    // fallback safety
+    window.location.href = "index.html";
+}
+
+document.getElementById("warehouse").innerText = warehouse;
+
+const binInput = document.getElementById("bin");
+
+// keep input usable when keyboard opens
+binInput.addEventListener("focus", () => {
+    setTimeout(() => {
+        binInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+});
+
+// scanner auto-focus on load
+window.addEventListener("load", () => {
+    binInput.focus();
+});
+
+function startCycle() {
+    const bin = binInput.value.trim();
+
+    if (!bin) return;
+
+    localStorage.setItem("bin", bin);
+
+    const cycleId = "CYCLE-" + Date.now();
+    localStorage.setItem("cycle", cycleId);
+
+    window.location.href = "scannerScan.html";
+}
+</script>
+
+</body>
+</html>

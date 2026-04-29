@@ -7,35 +7,50 @@
 
 <style>
 body {
+    margin: 0;
+    padding: 0;
     font-family: Arial;
     background: rgb(0,0,0);
     color: rgb(255,224,0);
-    margin: 0;
-    padding: 12px;
-    font-size: 18px;
     -webkit-user-select: none;
     user-select: none;
+    overflow: hidden;
+}
+
+/* =========================
+   TOP 40% PANEL
+========================= */
+#skuSection,
+#scanSection {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+
+    height: 40vh;
+    padding: 8px;
+    box-sizing: border-box;
+
+    width: 100vw;
 }
 
 h2 {
     text-align: center;
-    font-size: 26px;
-    margin-bottom: 16px;
-    letter-spacing: 1px;
+    font-size: 20px;
+    margin: 4px 0;
 }
-
-.hidden { display: none; }
 
 label {
-    font-size: 18px;
+    font-size: 16px;
 }
 
+/* INPUTS */
 input, select {
     width: 100%;
     font-size: 20px;
-    padding: 14px;
-    margin: 8px 0;
-    background: rgb(0,0,0);
+    padding: 12px;
+    margin: 4px 0;
+    background: black;
     color: rgb(255,224,0);
     border: 2px solid rgb(255,224,0);
     border-radius: 6px;
@@ -47,45 +62,13 @@ input:focus, select:focus {
     box-shadow: 0 0 8px rgb(255,224,0);
 }
 
-table {
-    border-collapse: collapse;
-    margin-top: 20px;
-    width: 100%;
-    font-size: 18px;
-}
-
-td, th {
-    border: 1px solid rgb(255,224,0);
-    padding: 10px;
-    text-align: center;
-}
-
-th {
-    background: rgb(255,224,0);
-    color: rgb(0,0,0);
-    font-size: 18px;
-}
-
-#errorMsg {
-    color: rgb(255,224,0);
-    margin-top: 12px;
-    font-size: 18px;
-    text-align: center;
-    min-height: 24px;
-}
-
-.topButtons {
-    margin-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
+/* BUTTONS */
 button {
-    padding: 18px;
+    width: 100%;
     font-size: 20px;
-    cursor: pointer;
-    background: rgb(0,0,0);
+    padding: 14px;
+    margin: 4px 0;
+    background: black;
     color: rgb(255,224,0);
     border: 2px solid rgb(255,224,0);
     border-radius: 8px;
@@ -94,7 +77,46 @@ button {
 
 button:active {
     background: rgb(255,224,0);
-    color: rgb(0,0,0);
+    color: black;
+}
+
+/* BUTTON STACK */
+.topButtons {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+/* =========================
+   BOTTOM 60% TABLE
+========================= */
+#resultTable {
+    position: absolute;
+    top: 40vh;
+    left: 0;
+    width: 100vw;
+    height: 60vh;
+    overflow-y: auto;
+    display: block;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+td, th {
+    border: 1px solid rgb(255,224,0);
+    padding: 6px;
+    text-align: center;
+}
+
+th {
+    background: rgb(255,224,0);
+    color: black;
+    font-size: 14px;
 }
 
 /* =========================
@@ -111,16 +133,15 @@ button:active {
     right: 0;
     background: black;
     border: 2px solid rgb(255,224,0);
-    max-height: 200px;
+    max-height: 160px;
     overflow-y: auto;
     z-index: 999;
 }
 
 .suggestionItem {
-    padding: 12px;
-    font-size: 18px;
+    padding: 10px;
+    font-size: 16px;
     border-bottom: 1px solid rgb(255,224,0);
-    cursor: pointer;
 }
 
 .suggestionItem:active {
@@ -129,39 +150,19 @@ button:active {
 }
 
 /* =========================
-   LAYOUT
+   ERROR
 ========================= */
-#skuSection, #scanSection {
-    max-width: 600px;
-    margin: 0 auto;
+#errorMsg {
+    text-align: center;
+    min-height: 20px;
+    font-size: 16px;
 }
 
 /* =========================
-   MODAL
+   HIDE
 ========================= */
-#manualModal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.95);
+.hidden {
     display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 10px;
-}
-
-#manualBox {
-    background: rgb(0,0,0);
-    padding: 20px;
-    width: 100%;
-    max-width: 420px;
-    border: 2px solid rgb(255,224,0);
-    border-radius: 10px;
-}
-
-#manualBox h3 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 12px;
 }
 </style>
 </head>
@@ -174,14 +175,13 @@ button:active {
      SKU SECTION
 ========================= -->
 <div id="skuSection">
-    <label>Enter SKU:</label><br>
+    <label>Enter SKU:</label>
 
     <div class="suggestions">
         <input type="text" id="sku" autocomplete="off">
         <div id="suggestionBox" class="suggestionBox hidden"></div>
     </div>
 
-    <br><br>
     <button onclick="startScanning()">Start Scanning</button>
 </div>
 
@@ -198,52 +198,32 @@ button:active {
         <button onclick="openManual()">Manual Add LOT</button>
     </div>
 
-    <p>Scan continuously...</p>
-    <input type="text" id="scanInput" autofocus>
+    <input type="text" id="scanInput" placeholder="Scan continuously..." autofocus>
+
     <div id="errorMsg"></div>
 </div>
 
+<!-- =========================
+     RESULTS TABLE
+========================= -->
 <table id="resultTable" class="hidden">
     <thead>
         <tr>
             <th>SKU</th>
             <th>LOT</th>
-            <th>Expiration</th>
-            <th>Quantity</th>
+            <th>EXP</th>
+            <th>QTY</th>
         </tr>
     </thead>
     <tbody></tbody>
 </table>
-
-<br>
-<button onclick="resetAll()">Reset</button>
-
-<!-- =========================
-     MANUAL ENTRY MODAL
-========================= -->
-<div id="manualModal">
-    <div id="manualBox">
-        <h3>Manual LOT Entry</h3>
-
-        <input id="mLot" placeholder="LOT">
-
-        <select id="mYear"></select>
-        <select id="mMonth"></select>
-        <select id="mDay"></select>
-
-        <input id="mQty" type="number" placeholder="Quantity">
-
-        <button onclick="addManual()">Add</button>
-        <button onclick="closeManual()">Cancel</button>
-    </div>
-</div>
 
 <script>
 
 /* =========================
    GOOGLE SHEET SKU LOAD
 ========================= */
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcNmdR8CzUL7BKaZkdrUttj8u9z73q6ThlT2h_6c5ua_dtbb6D93O-80vFDR3OwS-OcdXH_2NWhikf/pub?output=csv";
+const SHEET_URL = "YOUR_CSV_LINK_HERE";
 let skuList = [];
 
 async function loadSKUs() {
@@ -263,7 +243,7 @@ async function loadSKUs() {
 loadSKUs();
 
 /* =========================
-   SKU AUTOCOMPLETE
+   AUTOCOMPLETE
 ========================= */
 const skuInput = document.getElementById("sku");
 const suggestionBox = document.getElementById("suggestionBox");
@@ -309,7 +289,7 @@ document.addEventListener("click", (e) => {
 });
 
 /* =========================
-   ORIGINAL LOGIC
+   STATE
 ========================= */
 const scanInput = document.getElementById('scanInput');
 const tableBody = document.querySelector('#resultTable tbody');
@@ -322,7 +302,9 @@ let lastInputTime = Date.now();
 
 let currentSKU = "";
 
-/* START SCANNING (UPDATED WITH VALIDATION) */
+/* =========================
+   START SCANNING
+========================= */
 function startScanning() {
     const sku = skuInput.value.trim();
 
@@ -344,12 +326,14 @@ function startScanning() {
     scanInput.focus();
 }
 
-/* ENTER SKU FLOW */
-skuInput.addEventListener("keydown", function(e){
+/* ENTER SUPPORT */
+skuInput.addEventListener("keydown", e => {
     if (e.key === "Enter") startScanning();
 });
 
-/* AUTO SCAN */
+/* =========================
+   SCANNING ENGINE
+========================= */
 scanInput.addEventListener('input', function () {
     const now = Date.now();
     const diff = now - lastInputTime;
@@ -367,13 +351,11 @@ scanInput.addEventListener('input', function () {
     }, 50);
 });
 
-/* ERROR SOUND */
-function showError(message) {
-    errorMsg.innerText = message;
+function showError(msg) {
+    errorMsg.innerText = msg;
     setTimeout(() => errorMsg.innerText = '', 1500);
 }
 
-/* PARSE SCAN */
 function processScan(raw) {
     if (!raw) return;
 
@@ -383,15 +365,10 @@ function processScan(raw) {
     let exp = '';
     let lot = '';
 
-    if (working.startsWith('01') && working.length >= 16) {
-        working = working.substr(16);
-    }
-
     let expIndex = working.indexOf('17');
     if (expIndex !== -1 && working.length >= expIndex + 8) {
         const expRaw = working.substr(expIndex + 2, 6);
         exp = `20${expRaw.slice(0,2)}-${expRaw.slice(2,4)}-${expRaw.slice(4,6)}`;
-        working = working.replace(working.substr(expIndex, 8), '');
     }
 
     let lotIndex = working.indexOf('10');
@@ -408,7 +385,7 @@ function processScan(raw) {
     }
 
     if (!lot) {
-        showError("Invalid barcode scanned");
+        showError("Invalid barcode");
         return;
     }
 
@@ -423,7 +400,9 @@ function processScan(raw) {
     renderTable();
 }
 
-/* TABLE */
+/* =========================
+   TABLE
+========================= */
 function renderTable() {
     tableBody.innerHTML = '';
 
@@ -439,19 +418,12 @@ function renderTable() {
     });
 }
 
-/* RESET */
-function resetAll() {
-    location.reload();
-}
-
 /* =========================
-   PLACEHOLDER FUNCTIONS (UNCHANGED)
+   PLACEHOLDERS
 ========================= */
 function nextSKU() {}
 function completeBin() {}
 function openManual() {}
-function closeManual() {}
-function addManual() {}
 
 </script>
 

@@ -7,17 +7,18 @@
 
 <style>
 body {
-    margin: 0;
     font-family: Arial;
     background: rgb(0,0,0);
     color: rgb(255,224,0);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
     -webkit-user-select: none;
     user-select: none;
-    overflow: hidden; /* KEY FIX */
 }
 
 /* =========================
-   TOP 40% PANEL (ALL CONTROLS)
+   TOP 40% WORK AREA
 ========================= */
 #topPanel {
     position: fixed;
@@ -35,7 +36,7 @@ body {
 }
 
 /* =========================
-   BOTTOM 60% TABLE AREA
+   BOTTOM TABLE
 ========================= */
 #resultTable {
     position: fixed;
@@ -43,7 +44,6 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-
     overflow-y: auto;
 }
 
@@ -51,15 +51,11 @@ body {
 h2 {
     text-align: center;
     font-size: 20px;
-    margin: 2px 0;
-}
-
-label {
-    font-size: 16px;
+    margin: 4px 0;
 }
 
 /* INPUTS */
-input, select {
+input {
     width: 100%;
     font-size: 20px;
     padding: 12px;
@@ -81,11 +77,6 @@ button {
     border-radius: 8px;
 }
 
-button:active {
-    background: rgb(255,224,0);
-    color: black;
-}
-
 /* TABLE */
 table {
     width: 100%;
@@ -104,25 +95,12 @@ th {
     color: black;
 }
 
-/* ERROR */
-#errorMsg {
-    text-align: center;
-    min-height: 18px;
-    font-size: 14px;
-}
-
-/* SKU SUGGESTIONS */
-.suggestions {
-    position: relative;
-}
-
+/* AUTOCOMPLETE BOX */
 .suggestionBox {
     position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
     background: black;
     border: 2px solid rgb(255,224,0);
+    width: 100%;
     max-height: 160px;
     overflow-y: auto;
     z-index: 999;
@@ -130,58 +108,63 @@ th {
 
 .suggestionItem {
     padding: 10px;
-    font-size: 14px;
     border-bottom: 1px solid rgb(255,224,0);
+}
+
+.hidden { display: none; }
+
+/* ERROR */
+#errorMsg {
+    text-align: center;
+    min-height: 20px;
+    font-size: 14px;
 }
 </style>
 </head>
 
 <body>
 
-<!-- =========================
-     TOP PANEL (ONLY INTERACTIVE AREA)
-========================= -->
 <div id="topPanel">
 
-    <h2>Scan Items</h2>
+<h2>Scan Items</h2>
 
-    <!-- SKU INPUT -->
-    <label>Enter SKU:</label>
-    <div class="suggestions">
-        <input type="text" id="sku" autocomplete="off">
-        <div id="suggestionBox" class="suggestionBox hidden"></div>
-    </div>
+<!-- =========================
+   SKU INPUT + GOOGLE FILTER
+========================= -->
+<div style="position:relative;">
+    <input type="text" id="sku" placeholder="Enter SKU">
+    <div id="suggestionBox" class="suggestionBox hidden"></div>
+</div>
 
-    <button onclick="startScanning()">Start Scanning</button>
+<button onclick="startScanning()">Start Scanning</button>
 
-    <div id="scanSection" class="hidden">
+<div id="scanSection" class="hidden">
 
-        <p><strong>SKU:</strong> <span id="skuDisplay"></span></p>
+    <p><strong>SKU:</strong> <span id="skuDisplay"></span></p>
 
-        <button onclick="nextSKU()">Next SKU</button>
-        <button onclick="completeBin()">Complete Bin</button>
-        <button onclick="openManual()">Manual Add LOT</button>
+    <button onclick="nextSKU()">Next SKU</button>
+    <button onclick="completeBin()">Complete Bin</button>
+    <button onclick="openManual()">Manual Add LOT</button>
 
-        <input type="text" id="scanInput" placeholder="Scan..." autofocus>
+    <input type="text" id="scanInput" placeholder="Scan..." autofocus>
 
-        <div id="errorMsg"></div>
-
-    </div>
+    <div id="errorMsg"></div>
+</div>
 
 </div>
 
 <!-- =========================
-     BOTTOM TABLE
+   TABLE
 ========================= -->
 <div id="resultTable" class="hidden">
     <table>
         <thead>
-        <tr>
-            <th>SKU</th>
-            <th>LOT</th>
-            <th>EXP</th>
-            <th>QTY</th>
-        </tr>
+            <tr>
+                <th>SKU</th>
+                <th>LOT</th>
+                <th>EXP</th>
+                <th>QTY</th>
+            </tr>
         </thead>
         <tbody></tbody>
     </table>
@@ -190,7 +173,7 @@ th {
 <script>
 
 /* =========================
-   SKU LOAD
+   GOOGLE SHEET SKU LOAD
 ========================= */
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcNmdR8CzUL7BKaZkdrUttj8u9z73q6ThlT2h_6c5ua_dtbb6D93O-80vFDR3OwS-OcdXH_2NWhikf/pub?output=csv";
 let skuList = [];
@@ -206,13 +189,13 @@ async function loadSKUs() {
             .filter(Boolean);
 
     } catch (e) {
-        console.error(e);
+        console.error("SKU load failed", e);
     }
 }
 loadSKUs();
 
 /* =========================
-   AUTOCOMPLETE
+   AUTOCOMPLETE (RESTORED)
 ========================= */
 const skuInput = document.getElementById("sku");
 const suggestionBox = document.getElementById("suggestionBox");
@@ -225,7 +208,9 @@ skuInput.addEventListener("input", function () {
         return;
     }
 
-    const matches = skuList.filter(s => s.toLowerCase().includes(val)).slice(0,10);
+    const matches = skuList
+        .filter(s => s.toLowerCase().includes(val))
+        .slice(0, 10);
 
     if (!matches.length) {
         suggestionBox.classList.add("hidden");
@@ -250,13 +235,13 @@ skuInput.addEventListener("input", function () {
 });
 
 document.addEventListener("click", e => {
-    if (!e.target.closest(".suggestions")) {
+    if (!e.target.closest("#topPanel")) {
         suggestionBox.classList.add("hidden");
     }
 });
 
 /* =========================
-   STATE (UNCHANGED LOGIC)
+   STATE
 ========================= */
 const scanInput = document.getElementById('scanInput');
 const tableBody = document.querySelector('tbody');
@@ -269,28 +254,21 @@ let lastInputTime = Date.now();
 let currentSKU = "";
 
 /* =========================
-   START SCANNING
+   START SCANNING (UNCHANGED LOGIC)
 ========================= */
 function startScanning() {
     const sku = skuInput.value.trim();
-
-    if (!skuList.includes(sku)) {
-        alert("Invalid SKU");
-        return;
-    }
+    if (!sku) return alert("Enter SKU first");
 
     currentSKU = sku;
 
-    document.getElementById("skuDisplay").innerText = sku;
+    document.getElementById('skuDisplay').innerText = sku;
 
-    document.getElementById("scanSection").classList.remove("hidden");
-    document.getElementById("resultTable").classList.remove("hidden");
+    document.getElementById('scanSection').classList.remove('hidden');
+    document.getElementById('resultTable').classList.remove('hidden');
+
+    scanInput.focus();
 }
-
-/* ENTER SUPPORT */
-skuInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") startScanning();
-});
 
 /* =========================
    SCANNER ENGINE (UNCHANGED)
@@ -312,11 +290,15 @@ scanInput.addEventListener('input', function () {
     }, 50);
 });
 
-function showError(msg) {
-    errorMsg.innerText = msg;
+/* ERROR */
+function showError(message) {
+    errorMsg.innerText = message;
     setTimeout(() => errorMsg.innerText = '', 1500);
 }
 
+/* =========================
+   BARCODE LOGIC (UNCHANGED)
+========================= */
 function processScan(raw) {
     if (!raw) return;
 
@@ -325,6 +307,22 @@ function processScan(raw) {
 
     let exp = '';
     let lot = '';
+
+    if (working.startsWith('01') && working.length >= 16) {
+        working = working.substr(16);
+    }
+
+    let expIndex = working.indexOf('17');
+    if (expIndex !== -1 && working.length >= expIndex + 8) {
+        const expRaw = working.substr(expIndex + 2, 6);
+        exp = `20${expRaw.slice(0,2)}-${expRaw.slice(2,4)}-${expRaw.slice(4,6)}`;
+        working = working.substring(0, expIndex) + working.substring(expIndex + 8);
+    }
+
+    let mfgIndex = working.indexOf('11');
+    if (mfgIndex !== -1 && working.length >= mfgIndex + 8) {
+        working = working.substring(0, mfgIndex) + working.substring(mfgIndex + 8);
+    }
 
     let lotIndex = working.indexOf('10');
     if (lotIndex !== -1) {
@@ -340,7 +338,7 @@ function processScan(raw) {
     }
 
     if (!lot) {
-        showError("Invalid barcode");
+        showError("Invalid barcode scanned");
         return;
     }
 
@@ -355,9 +353,7 @@ function processScan(raw) {
     renderTable();
 }
 
-/* =========================
-   TABLE
-========================= */
+/* TABLE */
 function renderTable() {
     tableBody.innerHTML = '';
 

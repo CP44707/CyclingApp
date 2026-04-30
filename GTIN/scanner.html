@@ -1,179 +1,137 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Scanner</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      font-family: Arial;
-      height: 100%;
-      overflow: hidden;
-    }
+<title>Scanner</title>
 
-    #banner {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      padding: 12px;
-      text-align: center;
-      color: white;
-      font-size: 18px;
-      display: none;
-    }
+<style>
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    width: 3.75in;
+    height: 2.25in;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: #111;
+    color: white;
+  }
 
-    #wrap {
-      padding: 60px 10px 10px;
-    }
+  #scanInput {
+    width: 90%;
+    font-size: 18px;
+    padding: 10px;
+    text-align: center;
+  }
 
-    #scanInput {
-      width: 100%;
-      font-size: 22px;
-      padding: 12px;
-      box-sizing: border-box;
-    }
+  #status {
+    margin-top: 10px;
+    font-size: 14px;
+  }
 
-    #result {
-      margin-top: 15px;
-      font-size: 18px;
-    }
-
-    button {
-      margin-top: 10px;
-      width: 100%;
-      font-size: 18px;
-      padding: 12px;
-    }
-  </style>
+  .error { color: #ff4d4d; }
+  .ok { color: #4dff88; }
+</style>
 </head>
 
 <body>
 
-<div id="banner"></div>
-
-<div id="wrap">
-
-  <input id="scanInput" placeholder="Scan barcode..." autocomplete="off">
-  <div id="result"></div>
-
-  <button onclick="goBack()">Back</button>
-
-</div>
+<input id="scanInput" placeholder="Scan barcode..." autofocus />
+<div id="status"></div>
 
 <script src="config.js"></script>
-
 <script>
-// --------------------
-// SOUND
-// --------------------
-const ok = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
-const bad = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
+const input = document.getElementById("scanInput");
+const status = document.getElementById("status");
 
-// --------------------
-// DATA
-// --------------------
-let map = new Map(); // GTIN -> SKU
+input.focus();
 
-// --------------------
-// LOAD SHEET
-// --------------------
-async function loadData() {
-  const res = await fetch(CONFIG.CSV_URL);
-  const text = await res.text();
+// --- sounds ---
+function beepGood() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  o.frequency.value = 880;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 120);
+}
 
-  const rows = text.trim().split("\n").map(r => r.split(","));
-  rows.shift();
+function beepBad() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  o.frequency.value = 180;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 400);
+}
 
-  map.clear();
-
-  rows.forEach(r => {
-    const sku = (r[0] || "").trim();
-    const gtin = (r[1] || "").trim();
-
-    if (sku && gtin) {
-      map.set(gtin, sku);
-    }
+// --- CSV parsing ---
+function parseCSV(text) {
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split("\t");
+  return lines.slice(1).map(line => {
+    const cols = line.split("\t");
+    let obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (cols[i] || "").trim());
+    return obj;
   });
 }
 
-// --------------------
-// GTIN PARSE
-// --------------------
-function extractGTIN(str) {
-  const match = str.match(/01(\d{14})/);
-  return match ? match[1] : null;
+// --- GTIN extraction ---
+function extractGTIN(raw) {
+  raw = raw.trim();
+
+  // GS1 format (01) + digits
+  const match = raw.match(/\(?01\)?(\d{14,})/);
+  if (!match) return null;
+
+  return match[1];
 }
 
-// --------------------
-// UI
-// --------------------
-function banner(text, color) {
-  const b = document.getElementById("banner");
-  b.textContent = text;
-  b.style.background = color;
-  b.style.display = "block";
+// --- main scan handler ---
+input.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
 
-  setTimeout(() => b.style.display = "none", 1200);
-}
+  const raw = input.value;
+  input.value = "";
 
-function setResult(text) {
-  document.getElementById("result").textContent = text;
-}
+  const gtin = extractGTIN(raw);
 
-// --------------------
-// SCAN HANDLER
-// --------------------
-function handleScan(val) {
-  const gtin = extractGTIN(val);
-
-  // ❌ NO GTIN
   if (!gtin) {
-    setResult("❌ Invalid barcode");
-    bad.play();
-    banner("ERROR", "red");
+    status.textContent = "Invalid barcode";
+    status.className = "error";
+    beepBad();
+    input.focus();
     return;
   }
 
-  // 🟢 FOUND
-  if (map.has(gtin)) {
-    const sku = map.get(gtin);
+  try {
+    const res = await fetch(CONFIG.CSV_URL);
+    const text = await res.text();
+    const data = parseCSV(text);
 
-    setResult("SKU: " + sku);
-    ok.play();
-    banner("SKU: " + sku, "green");
-    return;
+    const match = data.find(r => r.GTIN === gtin);
+
+    if (match) {
+      status.textContent = "SKU: " + match.Item;
+      status.className = "ok";
+      beepGood();
+    } else {
+      // redirect to assign
+      window.location.href = `assign.html?gtin=${encodeURIComponent(gtin)}`;
+    }
+
+  } catch (err) {
+    status.textContent = "Fetch error";
+    status.className = "error";
+    beepBad();
   }
 
-  // 🟡 NOT FOUND → ASSIGN PAGE
-  setResult("⚠️ GTIN not found");
-  banner("ASSIGN SKU", "orange");
-
-  window.location.href = "assign.html?gtin=" + gtin;
-}
-
-// --------------------
-// EVENTS
-// --------------------
-document.getElementById("scanInput").addEventListener("keydown", e => {
-  if (e.key === "Enter") {
-    handleScan(e.target.value.trim());
-    e.target.value = "";
-  }
+  input.focus();
 });
-
-// keep focus
-setInterval(() => {
-  document.getElementById("scanInput").focus();
-}, 400);
-
-// INIT
-window.onload = loadData;
-
-function goBack() {
-  window.location.href = "index.html";
-}
 </script>
 
 </body>

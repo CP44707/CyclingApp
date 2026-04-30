@@ -1,143 +1,140 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Assign SKU</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
-  <style>
-    body {
-      font-family: Arial;
-      margin: 0;
-      padding: 15px;
-      overflow: hidden;
-    }
+<title>Assign GTIN</title>
 
-    #header {
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
+<style>
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    width: 3.75in;
+    height: 2.25in;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: #111;
+    color: white;
+  }
 
-    input {
-      width: 100%;
-      font-size: 18px;
-      padding: 10px;
-      box-sizing: border-box;
-    }
+  input, button {
+    width: 90%;
+    padding: 10px;
+    margin: 5px 0;
+    font-size: 14px;
+  }
 
-    #list {
-      list-style: none;
-      padding: 0;
-      margin-top: 10px;
-      max-height: 300px;
-      overflow: hidden;
-    }
+  #msg {
+    font-size: 12px;
+    margin-top: 5px;
+  }
 
-    #list li {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    button {
-      width: 100%;
-      padding: 12px;
-      font-size: 18px;
-      margin-top: 10px;
-    }
-
-    #gtinBox {
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-  </style>
+  .error { color: #ff4d4d; }
+  .ok { color: #4dff88; }
+</style>
 </head>
 
 <body>
 
-<div id="gtinBox"></div>
+<h4>Assign GTIN</h4>
 
-<input id="search" placeholder="Search SKU...">
-<ul id="list"></ul>
+<input id="skuSearch" list="skuList" placeholder="Search SKU..." />
+<datalist id="skuList"></datalist>
 
-<button onclick="goBack()">Back</button>
+<button id="saveBtn">Assign GTIN</button>
+
+<div id="msg"></div>
 
 <script src="config.js"></script>
-
 <script>
-let gtin = "";
-let skuList = [];
+const msg = document.getElementById("msg");
+const skuSearch = document.getElementById("skuSearch");
+const skuList = document.getElementById("skuList");
 
-// LOAD GTIN FROM URL
-function getGTIN() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("gtin");
+const params = new URLSearchParams(window.location.search);
+const gtin = params.get("gtin");
+
+function beepGood() {
+  const ctx = new AudioContext();
+  const o = ctx.createOscillator();
+  o.frequency.value = 880;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 120);
 }
 
-// LOAD SHEET
-async function loadData() {
+function beepBad() {
+  const ctx = new AudioContext();
+  const o = ctx.createOscillator();
+  o.frequency.value = 180;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 400);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split("\t");
+  return lines.slice(1).map(line => {
+    const cols = line.split("\t");
+    let obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (cols[i] || "").trim());
+    return obj;
+  });
+}
+
+async function loadSKUs() {
   const res = await fetch(CONFIG.CSV_URL);
   const text = await res.text();
+  const data = parseCSV(text);
 
-  const rows = text.trim().split("\n").map(r => r.split(","));
-  rows.shift();
-
-  skuList = rows.map(r => (r[0] || "").trim());
-}
-
-// RENDER LIST
-function render(filter) {
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-
-  skuList
-    .filter(s => s.toLowerCase().includes(filter.toLowerCase()))
-    .slice(0, 20)
-    .forEach(sku => {
-      const li = document.createElement("li");
-      li.textContent = sku;
-      li.onclick = () => assign(sku);
-      list.appendChild(li);
-    });
-}
-
-// ASSIGN PAIR
-async function assign(sku) {
-  await fetch(CONFIG.API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "assignSku",
-      item: sku,
-      gtin: gtin
-    }),
-    headers: {
-      "Content-Type": "application/json"
-    }
+  data.forEach(r => {
+    const opt = document.createElement("option");
+    opt.value = r.Item;
+    skuList.appendChild(opt);
   });
-
-  alert("Saved: " + sku + " ↔ " + gtin);
-
-  window.location.href = "scanner.html";
 }
 
-// BACK
-function goBack() {
-  window.location.href = "scanner.html";
-}
+loadSKUs();
 
-// INIT
-window.onload = async () => {
-  gtin = getGTIN();
+document.getElementById("saveBtn").onclick = async () => {
+  const sku = skuSearch.value.trim();
 
-  document.getElementById("gtinBox").textContent =
-    "Assign GTIN: " + gtin;
+  if (!sku) {
+    msg.textContent = "Select a valid SKU";
+    msg.className = "error";
+    beepBad();
+    return;
+  }
 
-  await loadData();
-  render("");
+  try {
+    const res = await fetch(CONFIG.API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sku, gtin })
+    });
 
-  document.getElementById("search").focus();
+    if (res.ok) {
+      msg.textContent = "Assigned!";
+      msg.className = "ok";
+      beepGood();
+
+      setTimeout(() => {
+        window.location.href = "scanner.html";
+      }, 800);
+    } else {
+      throw new Error();
+    }
+
+  } catch (e) {
+    msg.textContent = "Save failed";
+    msg.className = "error";
+    beepBad();
+  }
 };
-
-document.getElementById("search").addEventListener("input", e => {
-  render(e.target.value);
-});
 </script>
 
 </body>

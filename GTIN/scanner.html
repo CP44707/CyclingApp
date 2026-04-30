@@ -1,53 +1,12 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-
-<title>Scanner</title>
-
-<style>
-  body {
-    margin: 0;
-    font-family: sans-serif;
-    width: 3.75in;
-    height: 2.25in;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    background: #111;
-    color: white;
-  }
-
-  #scanInput {
-    width: 90%;
-    font-size: 18px;
-    padding: 10px;
-    text-align: center;
-  }
-
-  #status {
-    margin-top: 10px;
-    font-size: 14px;
-  }
-
-  .error { color: #ff4d4d; }
-  .ok { color: #4dff88; }
-</style>
-</head>
-
-<body>
-
-<input id="scanInput" placeholder="Scan barcode..." autofocus />
-<div id="status"></div>
-
 <script src="config.js"></script>
 <script>
 const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
 
 input.focus();
+
+// keep focus always (important for handheld devices)
+setInterval(() => input.focus(), 500);
 
 // --- sounds ---
 function beepGood() {
@@ -65,74 +24,110 @@ function beepBad() {
   o.frequency.value = 180;
   o.connect(ctx.destination);
   o.start();
-  setTimeout(() => o.stop(), 400);
+  setTimeout(() => o.stop(), 300);
 }
 
-// --- CSV parsing ---
+// --- CSV parsing (FIXED safer split + trim) ---
 function parseCSV(text) {
   const lines = text.trim().split("\n");
-  const headers = lines[0].split("\t");
+  const headers = lines[0].split("\t").map(h => h.trim());
+
   return lines.slice(1).map(line => {
     const cols = line.split("\t");
+
     let obj = {};
-    headers.forEach((h, i) => obj[h.trim()] = (cols[i] || "").trim());
+    headers.forEach((h, i) => {
+      obj[h] = (cols[i] || "").trim();
+    });
+
     return obj;
   });
 }
 
-// --- GTIN extraction ---
+// --- GTIN extraction (GS1 AI 01) ---
 function extractGTIN(raw) {
   raw = raw.trim();
 
-  // GS1 format (01) + digits
-  const match = raw.match(/\(?01\)?(\d{14,})/);
+  const match = raw.match(/\(?01\)?(\d{14,18})/);
   if (!match) return null;
 
   return match[1];
 }
 
-// --- main scan handler ---
-input.addEventListener("keydown", async (e) => {
-  if (e.key !== "Enter") return;
+// --- normalize helper (IMPORTANT FIX) ---
+function norm(v) {
+  return (v || "").toString().trim().replace(/\s+/g, "");
+}
 
-  const raw = input.value;
-  input.value = "";
-
+// --- main scan handler (NOW AUTO TRIGGERS) ---
+async function handleScan(raw) {
   const gtin = extractGTIN(raw);
 
   if (!gtin) {
     status.textContent = "Invalid barcode";
-    status.className = "error";
+    status.style.color = "red";
     beepBad();
-    input.focus();
     return;
   }
 
   try {
-    const res = await fetch(CONFIG.CSV_URL);
+    const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
     const text = await res.text();
     const data = parseCSV(text);
 
-    const match = data.find(r => r.GTIN === gtin);
+    // FIX: normalize both sides so mismatches don't happen
+    const match = data.find(r => norm(r.GTIN) === norm(gtin));
 
     if (match) {
       status.textContent = "SKU: " + match.Item;
-      status.className = "ok";
+      status.style.color = "#4dff88";
       beepGood();
+
+      // READY FOR NEXT SCAN IMMEDIATELY
+      setTimeout(() => {
+        input.value = "";
+        input.focus();
+      }, 300);
+
     } else {
-      // redirect to assign
+      // not found → assign
       window.location.href = `assign.html?gtin=${encodeURIComponent(gtin)}`;
     }
 
   } catch (err) {
     status.textContent = "Fetch error";
-    status.className = "error";
+    status.style.color = "red";
     beepBad();
   }
+}
 
-  input.focus();
+/*
+=====================================================
+FIX: AUTO-DETECT SCANNER INPUT (NO ENTER REQUIRED)
+=====================================================
+Most handheld scanners send a burst of characters fast.
+We detect "typing burst end" instead of waiting for Enter.
+*/
+
+let buffer = "";
+let timer = null;
+
+input.addEventListener("input", (e) => {
+  buffer = e.target.value;
+
+  clearTimeout(timer);
+
+  timer = setTimeout(() => {
+    if (buffer.length > 0) {
+      handleScan(buffer);
+    }
+  }, 120); // adjust 80–200ms depending on scanner speed
+});
+
+// still support Enter if scanner sends it
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    handleScan(input.value);
+  }
 });
 </script>
-
-</body>
-</html>

@@ -5,14 +5,22 @@
 </head>
 <body>
 
-<h2>Add Item</h2>
+<h2>SKU ↔ GTIN Manager</h2>
 
+<!-- INPUTS -->
 <input type="text" id="item" placeholder="Enter SKU">
 <input type="text" id="gtin" placeholder="Enter GTIN">
 
+<br><br>
+
+<!-- ACTION BUTTONS -->
 <button onclick="sendData()">Save</button>
 <button onclick="getData()">Load Data</button>
+<button onclick="deleteBlanks()">Delete Blank Rows</button>
 
+<br><br>
+
+<!-- TABLE -->
 <table border="1">
   <thead>
     <tr>
@@ -23,12 +31,14 @@
   <tbody id="tableBody"></tbody>
 </table>
 
+<!-- CONFIG -->
 <script src="config.js"></script>
 
 <script>
+// SEND DATA TO GOOGLE SHEET
 async function sendData() {
-  const item = document.getElementById("item").value;
-  const gtin = document.getElementById("gtin").value;
+  const item = document.getElementById("item").value.trim();
+  const gtin = document.getElementById("gtin").value.trim();
 
   if (!item || !gtin) {
     alert("Both fields are required");
@@ -44,21 +54,28 @@ async function sendData() {
   });
 
   alert("Saved!");
+
+  // clear inputs
+  document.getElementById("item").value = "";
+  document.getElementById("gtin").value = "";
+
+  getData(); // refresh table
 }
 
-// CSV parser (simple)
+// SIMPLE CSV PARSER
 function parseCSV(text) {
   const rows = text.trim().split("\n");
   return rows.map(row => row.split(","));
 }
 
+// LOAD DATA FROM CSV
 async function getData() {
   const response = await fetch(CONFIG.CSV_URL);
   const text = await response.text();
 
   const rows = parseCSV(text);
 
-  // remove header
+  // remove header row
   rows.shift();
 
   const tbody = document.getElementById("tableBody");
@@ -70,16 +87,35 @@ async function getData() {
     const tr = document.createElement("tr");
 
     const tdItem = document.createElement("td");
-    tdItem.textContent = item;
+    tdItem.textContent = item || "";
 
     const tdGtin = document.createElement("td");
-    tdGtin.textContent = gtin;
+    tdGtin.textContent = gtin || "";
 
     tr.appendChild(tdItem);
     tr.appendChild(tdGtin);
     tbody.appendChild(tr);
   });
 }
+
+// DELETE BLANK ROWS VIA APPS SCRIPT
+async function deleteBlanks() {
+  if (!confirm("Are you sure you want to delete all blank rows?")) return;
+
+  await fetch(CONFIG.API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "deleteBlanks" }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  alert("Blank rows removed!");
+  getData(); // refresh table
+}
+
+// AUTO LOAD ON PAGE OPEN
+window.onload = getData;
 </script>
 
 </body>

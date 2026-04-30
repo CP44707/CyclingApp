@@ -25,11 +25,21 @@
       font-size: 18px;
     }
 
+    #gs1Debug {
+      font-size: 14px;
+      color: gray;
+    }
+
     #skuPrompt {
       display: none;
       margin-top: 20px;
       padding: 15px;
       border: 2px solid orange;
+    }
+
+    li {
+      cursor: pointer;
+      margin: 5px 0;
     }
   </style>
 </head>
@@ -43,6 +53,7 @@
 <input type="text" id="scanInput" autofocus placeholder="Scan here..." style="width:300px; font-size:18px;">
 
 <p id="result"></p>
+<p id="gs1Debug"></p>
 
 <!-- SKU PROMPT -->
 <div id="skuPrompt">
@@ -62,7 +73,7 @@ const failSound = new Audio("https://www.soundjay.com/buttons/sounds/button-10.m
 const warningSound = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
 
 let gtinMap = new Map(); // GTIN -> SKU
-let skuList = []; // all SKUs
+let skuList = [];
 let lastScannedGTIN = null;
 
 // LOAD DATA
@@ -85,10 +96,25 @@ async function loadData() {
   });
 }
 
-// EXTRACT GTIN
-function extractGTIN(scan) {
-  const match = scan.match(/\(01\)(\d{14})/);
-  return match ? match[1] : null;
+// PARSE GS1 (supports AI 01 detection anywhere)
+function parseGS1(scan) {
+  const results = [];
+
+  let i = 0;
+  while (i < scan.length) {
+    if (scan.substring(i, i + 2) === "01") {
+      const gtin = scan.substring(i + 2, i + 16);
+
+      if (/^\d{14}$/.test(gtin)) {
+        results.push({ ai: "01", value: gtin });
+        i += 16;
+        continue;
+      }
+    }
+    i++;
+  }
+
+  return results;
 }
 
 // BANNER
@@ -108,33 +134,28 @@ function showSkuPrompt(gtin) {
   lastScannedGTIN = gtin;
 
   const prompt = document.getElementById("skuPrompt");
-  const list = document.getElementById("skuList");
   const input = document.getElementById("skuSearch");
 
   prompt.style.display = "block";
-  list.innerHTML = "";
   input.value = "";
   input.focus();
 
   renderSkuList("");
 }
 
-// RENDER SKU LIST (FILTERED)
+// RENDER SKU LIST
 function renderSkuList(filter) {
   const list = document.getElementById("skuList");
   list.innerHTML = "";
 
-  const filtered = skuList.filter(sku =>
-    sku.toLowerCase().includes(filter.toLowerCase())
-  ).slice(0, 10); // limit results
+  const filtered = skuList
+    .filter(sku => sku.toLowerCase().includes(filter.toLowerCase()))
+    .slice(0, 10);
 
   filtered.forEach(sku => {
     const li = document.createElement("li");
     li.textContent = sku;
-    li.style.cursor = "pointer";
-
     li.onclick = () => assignSku(sku);
-
     list.appendChild(li);
   });
 }
@@ -159,15 +180,27 @@ async function assignSku(sku) {
 
   document.getElementById("skuPrompt").style.display = "none";
 
-  await loadData(); // refresh local cache
+  await loadData();
 }
 
 // HANDLE SCAN
 function handleScan(value) {
-  const gtin = extractGTIN(value);
   const result = document.getElementById("result");
+  const debug = document.getElementById("gs1Debug");
 
   document.getElementById("skuPrompt").style.display = "none";
+
+  const elements = parseGS1(value);
+
+  // DEBUG OUTPUT
+  if (elements.length > 0) {
+    debug.textContent = "GS1 Found: " + elements.map(e => `${e.ai}:${e.value}`).join(" | ");
+  } else {
+    debug.textContent = "No GS1 elements detected";
+  }
+
+  const gtinObj = elements.find(e => e.ai === "01");
+  const gtin = gtinObj ? gtinObj.value : null;
 
   // ❌ NO GTIN
   if (!gtin) {
@@ -204,7 +237,7 @@ document.getElementById("scanInput").addEventListener("keydown", function(e) {
   }
 });
 
-// SKU SEARCH FILTER
+// SKU SEARCH
 document.getElementById("skuSearch").addEventListener("input", function() {
   renderSkuList(this.value);
 });

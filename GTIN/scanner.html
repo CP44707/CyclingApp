@@ -10,47 +10,45 @@
       font-family: Arial;
       height: 100%;
       overflow: hidden;
+      background: #f5f5f5;
     }
 
-    #banner {
+    #topBar {
       position: fixed;
       top: 0;
       left: 0;
-      width: 100%;
-      color: white;
+      right: 0;
+      padding: 12px;
       text-align: center;
-      font-size: 20px;
-      padding: 10px;
+      color: white;
+      font-size: 18px;
       display: none;
-      z-index: 10;
     }
 
     #container {
       padding: 60px 10px 10px;
-      box-sizing: border-box;
-      height: 100%;
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
 
     #scanInput {
-      width: 100%;
-      font-size: 24px;
+      font-size: 22px;
       padding: 12px;
+      width: 100%;
       box-sizing: border-box;
     }
 
-    #status {
+    #result {
       font-size: 18px;
+      min-height: 40px;
     }
 
-    #skuBox {
+    #skuPanel {
       display: none;
-      border: 2px solid orange;
+      border: 2px solid #ff9800;
       padding: 10px;
-      flex: 1;
-      overflow: hidden;
+      background: white;
     }
 
     #skuSearch {
@@ -64,6 +62,8 @@
       list-style: none;
       padding: 0;
       margin: 10px 0 0;
+      max-height: 250px;
+      overflow-y: auto;
     }
 
     #skuList li {
@@ -72,8 +72,8 @@
     }
 
     button {
+      padding: 12px;
       font-size: 18px;
-      padding: 10px;
       width: 100%;
     }
   </style>
@@ -81,15 +81,15 @@
 
 <body>
 
-<div id="banner"></div>
+<div id="topBar"></div>
 
 <div id="container">
 
   <input id="scanInput" placeholder="Scan barcode..." autocomplete="off">
-  <div id="status"></div>
+  <div id="result"></div>
 
-  <div id="skuBox">
-    <div><b>GTIN not found — select SKU</b></div>
+  <div id="skuPanel">
+    <div><b>Select SKU for this GTIN</b></div>
     <input id="skuSearch" placeholder="Search SKU...">
     <ul id="skuList"></ul>
   </div>
@@ -102,22 +102,20 @@
 
 <script>
 // --------------------
-// SOUNDS
+// SOUND
 // --------------------
-const okSound = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
-const badSound = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
-const warnSound = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
+const ok = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+const bad = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
 
 // --------------------
 // DATA
 // --------------------
-let gtinToSku = new Map();
+let map = new Map(); // GTIN -> SKU
 let skuList = [];
 let currentGTIN = null;
-let inSkuMode = false;
 
 // --------------------
-// LOAD SHEET DATA
+// LOAD SHEET
 // --------------------
 async function loadData() {
   const res = await fetch(CONFIG.CSV_URL);
@@ -126,7 +124,7 @@ async function loadData() {
   const rows = text.trim().split("\n").map(r => r.split(","));
   rows.shift();
 
-  gtinToSku.clear();
+  map.clear();
   skuList = [];
 
   rows.forEach(r => {
@@ -134,93 +132,93 @@ async function loadData() {
     const gtin = (r[1] || "").trim();
 
     if (sku) skuList.push(sku);
-    if (sku && gtin) gtinToSku.set(gtin, sku);
+    if (sku && gtin) map.set(gtin, sku);
   });
 }
 
 // --------------------
-// GTIN EXTRACT
+// GTIN PARSE
 // --------------------
-function getGTIN(str) {
+function extractGTIN(str) {
   const m = str.match(/01(\d{14})/);
   return m ? m[1] : null;
 }
 
 // --------------------
-// UI
+// UI HELPERS
 // --------------------
-function banner(text, color) {
-  const b = document.getElementById("banner");
-  b.textContent = text;
-  b.style.background = color;
-  b.style.display = "block";
-  setTimeout(() => b.style.display = "none", 1500);
+function showBanner(text, color) {
+  const bar = document.getElementById("topBar");
+  bar.textContent = text;
+  bar.style.background = color;
+  bar.style.display = "block";
+
+  setTimeout(() => {
+    bar.style.display = "none";
+  }, 1200);
 }
 
-function status(text) {
-  document.getElementById("status").textContent = text;
+function setResult(text) {
+  document.getElementById("result").textContent = text;
 }
 
 // --------------------
-// CORE SCAN LOGIC
+// MAIN SCAN FLOW
 // --------------------
-function processScan(value) {
-  if (inSkuMode) return;
+function handleScan(value) {
+  const gtin = extractGTIN(value);
 
-  const gtin = getGTIN(value);
-
-  document.getElementById("skuBox").style.display = "none";
+  document.getElementById("skuPanel").style.display = "none";
 
   // ❌ NO GTIN
   if (!gtin) {
-    status("No GTIN found");
-    badSound.play();
-    banner("Invalid barcode", "red");
+    setResult("❌ Invalid barcode");
+    bad.play();
+    showBanner("ERROR", "red");
+    reset();
     return;
   }
 
-  // ✅ EXISTS
-  if (gtinToSku.has(gtin)) {
-    const sku = gtinToSku.get(gtin);
+  // ✅ FOUND
+  if (map.has(gtin)) {
+    const sku = map.get(gtin);
 
-    status("SKU: " + sku);
-    okSound.play();
-    banner("SKU: " + sku, "green");
+    setResult("SKU: " + sku);
+    ok.play();
+    showBanner("SKU: " + sku, "green");
+    reset();
     return;
   }
 
   // ⚠️ NOT FOUND
-  status("Unlinked GTIN: " + gtin);
-  warnSound.play();
-  banner("Assign SKU", "orange");
+  setResult("⚠️ GTIN not found: " + gtin);
+  bad.play();
+  showBanner("ASSIGN SKU", "orange");
 
   currentGTIN = gtin;
-  openSkuMode();
+  openSkuSelector();
 }
 
 // --------------------
-// SKU MODE
+// SKU SELECTOR
 // --------------------
-function openSkuMode() {
-  inSkuMode = true;
+function openSkuSelector() {
+  const panel = document.getElementById("skuPanel");
+  panel.style.display = "block";
 
-  const box = document.getElementById("skuBox");
-  box.style.display = "block";
+  renderSku("");
 
-  renderSkuList("");
-
-  setTimeout(() => {
-    document.getElementById("skuSearch").focus();
-  }, 50);
+  document.getElementById("skuSearch").value = "";
+  document.getElementById("skuSearch").focus();
 }
 
-function renderSkuList(filter) {
+function renderSku(filter) {
   const list = document.getElementById("skuList");
   list.innerHTML = "";
 
   skuList
     .filter(s => s.toLowerCase().includes(filter.toLowerCase()))
-    .slice(0, 12)
+    .slice(0, 15)
     .forEach(sku => {
       const li = document.createElement("li");
       li.textContent = sku;
@@ -243,16 +241,23 @@ async function assignSku(sku) {
     headers: { "Content-Type": "application/json" }
   });
 
-  gtinToSku.set(currentGTIN, sku);
+  map.set(currentGTIN, sku);
 
-  okSound.play();
-  banner("Saved: " + sku, "blue");
-  status("Linked: " + sku);
+  ok.play();
+  showBanner("Saved: " + sku, "blue");
+  setResult("Linked: " + sku);
 
-  inSkuMode = false;
-  document.getElementById("skuBox").style.display = "none";
+  reset();
+}
 
-  focusScan();
+// --------------------
+// RESET FOR NEXT SCAN
+// --------------------
+function reset() {
+  currentGTIN = null;
+
+  document.getElementById("scanInput").value = "";
+  document.getElementById("scanInput").focus();
 }
 
 // --------------------
@@ -260,32 +265,25 @@ async function assignSku(sku) {
 // --------------------
 document.getElementById("scanInput").addEventListener("keydown", e => {
   if (e.key === "Enter") {
-    processScan(e.target.value.trim());
-    e.target.value = "";
+    handleScan(e.target.value.trim());
   }
 });
 
 document.getElementById("skuSearch").addEventListener("input", e => {
-  renderSkuList(e.target.value);
+  renderSku(e.target.value);
 });
 
-// KEEP SCAN FOCUS (SAFE)
-function focusScan() {
-  if (!inSkuMode) {
+// KEEP FOCUS SIMPLE
+setInterval(() => {
+  if (document.activeElement.id !== "skuSearch") {
     document.getElementById("scanInput").focus();
   }
-}
-
-setInterval(() => {
-  if (!inSkuMode && document.activeElement.id !== "skuSearch") {
-    focusScan();
-  }
-}, 400);
+}, 500);
 
 // INIT
 window.onload = () => {
   loadData();
-  focusScan();
+  document.getElementById("scanInput").focus();
 };
 
 function goBack() {

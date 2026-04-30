@@ -44,6 +44,7 @@
 <div id="status"></div>
 
 <script src="config.js"></script>
+
 <script>
 const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
@@ -71,32 +72,50 @@ function badBeep() {
 }
 
 // --------------------
-// NORMALIZE
+// NORMALIZATION (KEY FIX)
 // --------------------
-function norm(v) {
+function normalizeGTIN(v) {
   return (v || "")
     .toString()
-    .trim()
-    .replace(/\r/g, "")
-    .replace(/\s+/g, "");
+    .replace(/\D/g, "")   // digits only
+    .padStart(14, "0")    // ensure leading zeros preserved
+    .slice(-14);          // enforce exact 14-digit GTIN
 }
 
 // --------------------
-// LOAD CSV INTO MAP
+// CSV PARSER (safe enough for simple Sheets export)
+// --------------------
+function parseCSV(text) {
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split(",");
+
+  return lines.slice(1).map(line => {
+    const cols = line.split(",");
+
+    let obj = {};
+    headers.forEach((h, i) => {
+      obj[h.trim()] = (cols[i] || "").trim();
+    });
+
+    return obj;
+  });
+}
+
+// --------------------
+// LOAD DATA INTO MAP
 // --------------------
 async function loadData() {
   try {
     const res = await fetch(CONFIG.CSV_URL + "?cache=" + Date.now());
     const text = await res.text();
 
-    const rows = text.trim().split("\n").map(r => r.split(","));
-    rows.shift(); // remove header
+    const rows = parseCSV(text);
 
     map.clear();
 
     rows.forEach(r => {
-      const sku = norm(r[0]);
-      const gtin = norm(r[1]);
+      const sku = (r.Item || "").trim();
+      const gtin = normalizeGTIN(r.GTIN);
 
       if (sku && gtin) {
         map.set(gtin, sku);
@@ -104,6 +123,7 @@ async function loadData() {
     });
 
     console.log("Loaded GTINs:", map.size);
+
   } catch (err) {
     status.textContent = "Failed to load data";
     status.style.color = "red";
@@ -114,7 +134,7 @@ async function loadData() {
 loadData();
 
 // --------------------
-// UI HELP
+// UI HELPERS
 // --------------------
 function show(msg, color) {
   status.textContent = msg;
@@ -122,22 +142,17 @@ function show(msg, color) {
 }
 
 // --------------------
-// GTIN EXTRACTION
+// GTIN EXTRACTION (STRICT GS1 AI 01)
 // --------------------
 function extractGTIN(raw) {
-  raw = (raw || "").toString().replace(/\s+/g, "");
+  raw = (raw || "")
+    .toString()
+    .replace(/\u001d/g, "")
+    .replace(/\s+/g, "");
 
-  // find 01 + 14 digits anywhere in string
-  const match = raw.match(/01(\d{14})/);
+  const match = raw.match(/(?:\(?01\)?)(\d{14})(?!\d)/);
 
-  if (!match) return null;
-
-  const gtin = match[1];
-
-  // extra safety: ensure no hidden trailing digits
-  if (!/^\d{14}$/.test(gtin)) return null;
-
-  return gtin;
+  return match ? match[1] : null;
 }
 
 // --------------------
@@ -153,16 +168,15 @@ function handleScan(raw) {
     return;
   }
 
-  const cleanGTIN = norm(gtin);
+  const cleanGTIN = normalizeGTIN(gtin);
 
-  // ✅ FAST LOOKUP
+  // FAST LOOKUP
   if (map.has(cleanGTIN)) {
     const sku = map.get(cleanGTIN);
 
     show("SKU: " + sku, "#4dff88");
     goodBeep();
 
-    // ready for next scan
     setTimeout(() => {
       input.value = "";
       input.focus();
@@ -171,7 +185,7 @@ function handleScan(raw) {
     return;
   }
 
-  // ❌ NOT FOUND → ASSIGN
+  // NOT FOUND → ASSIGN FLOW
   show("GTIN not found → assign", "orange");
 
   window.location.href =
@@ -179,8 +193,7 @@ function handleScan(raw) {
 }
 
 // --------------------
-// SCANNER INPUT HANDLING
-// (works without Enter key)
+// AUTO SCAN DETECTION (NO ENTER REQUIRED)
 // --------------------
 let buffer = "";
 let timer = null;
@@ -195,7 +208,7 @@ input.addEventListener("input", (e) => {
       handleScan(buffer);
       buffer = "";
     }
-  }, 100); // adjust if needed for your scanner speed
+  }, 100);
 });
 
 // fallback Enter support
@@ -206,8 +219,9 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
-// keep focus (important for handheld scanners)
+// keep focus (handheld stability)
 setInterval(() => input.focus(), 500);
+
 </script>
 
 </body>

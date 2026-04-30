@@ -46,10 +46,8 @@
 const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
 
-let map = new Map();
-
 // --------------------
-// SIMPLE BEEP
+// BEEP
 // --------------------
 function beep(freq) {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -57,44 +55,57 @@ function beep(freq) {
   o.frequency.value = freq;
   o.connect(ctx.destination);
   o.start();
-  setTimeout(() => o.stop(), 150);
+  setTimeout(() => o.stop(), 120);
 }
 
 // --------------------
-// LOAD SHEET (DO NOT OVER-PARSE)
+// CLEAN STRING
 // --------------------
-async function loadData() {
-  const res = await fetch(CONFIG.CSV_URL + "?cache=" + Date.now());
+function clean(v) {
+  return (v || "")
+    .toString()
+    .replace(/\r/g, "")
+    .trim();
+}
+
+// --------------------
+// EXTRACT GTIN (STRICT 14 DIGITS AFTER 01)
+// --------------------
+function extractGTIN(raw) {
+  raw = clean(raw).replace(/\s+/g, "");
+
+  const match = raw.match(/01(\d{14})/);
+  return match ? match[1] : null;
+}
+
+// --------------------
+// SEARCH CSV DIRECTLY
+// --------------------
+async function findSKU(gtin) {
+  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
   const text = await res.text();
 
   const lines = text.trim().split("\n");
 
-  map.clear();
-
+  // loop rows (skip header)
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",");
 
-    const sku = (cols[0] || "").trim();
-    const gtin = (cols[1] || "").trim();
+    const sku = clean(cols[0]);
+    const csvGTIN = clean(cols[1]).replace(/\D/g, ""); // digits only
 
-    if (gtin && sku) {
-      map.set(gtin, sku);
+    if (!sku || !csvGTIN) continue;
+
+    // normalize both to 14 digits
+    const normalizedCSV = csvGTIN.slice(-14);
+    const normalizedScan = gtin;
+
+    if (normalizedCSV === normalizedScan) {
+      return sku;
     }
   }
 
-  console.log("Loaded:", map.size);
-}
-
-loadData();
-
-// --------------------
-// EXTRACT GTIN (KEEP SIMPLE)
-// --------------------
-function extractGTIN(raw) {
-  raw = (raw || "").replace(/\s+/g, "");
-
-  const match = raw.match(/01(\d{14})/);
-  return match ? match[1] : null;
+  return null;
 }
 
 // --------------------
@@ -111,27 +122,28 @@ async function handleScan(value) {
     return;
   }
 
-  // IMPORTANT: compare EXACT STRING ONLY
-  if (map.has(gtin)) {
-    const sku = map.get(gtin);
+  status.textContent = "Searching...";
+  status.style.color = "white";
 
+  const sku = await findSKU(gtin);
+
+  if (sku) {
     status.textContent = "SKU: " + sku;
     status.style.color = "lime";
     beep(880);
 
     input.value = "";
-    return;
+  } else {
+    status.textContent = "Not found → assign";
+    status.style.color = "orange";
+
+    window.location.href =
+      "assign.html?gtin=" + encodeURIComponent(gtin);
   }
-
-  // NOT FOUND
-  status.textContent = "Not found → assign";
-  status.style.color = "orange";
-
-  window.location.href = "assign.html?gtin=" + encodeURIComponent(gtin);
 }
 
 // --------------------
-// AUTO TRIGGER (scanner friendly)
+// AUTO SCAN (NO ENTER REQUIRED)
 // --------------------
 let buffer = "";
 let timer;
@@ -142,7 +154,7 @@ input.addEventListener("input", (e) => {
   clearTimeout(timer);
 
   timer = setTimeout(() => {
-    if (buffer) {
+    if (buffer.length > 0) {
       handleScan(buffer);
       buffer = "";
     }
@@ -158,6 +170,7 @@ input.addEventListener("keydown", (e) => {
 
 // keep focus
 setInterval(() => input.focus(), 500);
+
 </script>
 
 </body>

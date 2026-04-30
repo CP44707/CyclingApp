@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Assign SKU</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      margin: 0;
+      padding: 15px;
+      overflow: hidden;
+    }
+
+    #header {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    input {
+      width: 100%;
+      font-size: 18px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    #list {
+      list-style: none;
+      padding: 0;
+      margin-top: 10px;
+      max-height: 300px;
+      overflow: hidden;
+    }
+
+    #list li {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      margin-top: 10px;
+    }
+
+    #gtinBox {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="gtinBox"></div>
+
+<input id="search" placeholder="Search SKU...">
+<ul id="list"></ul>
+
+<button onclick="goBack()">Back</button>
+
+<script src="config.js"></script>
+
+<script>
+let gtin = "";
+let skuList = [];
+
+// LOAD GTIN FROM URL
+function getGTIN() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("gtin");
+}
+
+// LOAD SHEET
+async function loadData() {
+  const res = await fetch(CONFIG.CSV_URL);
+  const text = await res.text();
+
+  const rows = text.trim().split("\n").map(r => r.split(","));
+  rows.shift();
+
+  skuList = rows.map(r => (r[0] || "").trim());
+}
+
+// RENDER LIST
+function render(filter) {
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  skuList
+    .filter(s => s.toLowerCase().includes(filter.toLowerCase()))
+    .slice(0, 20)
+    .forEach(sku => {
+      const li = document.createElement("li");
+      li.textContent = sku;
+      li.onclick = () => assign(sku);
+      list.appendChild(li);
+    });
+}
+
+// ASSIGN PAIR
+async function assign(sku) {
+  await fetch(CONFIG.API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "assignSku",
+      item: sku,
+      gtin: gtin
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  alert("Saved: " + sku + " ↔ " + gtin);
+
+  window.location.href = "scanner.html";
+}
+
+// BACK
+function goBack() {
+  window.location.href = "scanner.html";
+}
+
+// INIT
+window.onload = async () => {
+  gtin = getGTIN();
+
+  document.getElementById("gtinBox").textContent =
+    "Assign GTIN: " + gtin;
+
+  await loadData();
+  render("");
+
+  document.getElementById("search").focus();
+};
+
+document.getElementById("search").addEventListener("input", e => {
+  render(e.target.value);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Barcode Scanner</title>
+
+  <style>
+    body {
+      font-family: Arial;
+    }
+
+    #banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      color: white;
+      text-align: center;
+      font-size: 24px;
+      padding: 15px;
+      display: none;
+    }
+
+    #result {
+      margin-top: 80px;
+      font-size: 18px;
+    }
+
+    #skuPrompt {
+      display: none;
+      margin-top: 20px;
+      padding: 15px;
+      border: 2px solid orange;
+    }
+  </style>
+</head>
+<body>
+
+<div id="banner"></div>
+
+<h2>Scanner Mode</h2>
+<p>Scan a barcode using your handheld scanner</p>
+
+<input type="text" id="scanInput" autofocus placeholder="Scan here..." style="width:300px; font-size:18px;">
+
+<p id="result"></p>
+
+<!-- SKU PROMPT -->
+<div id="skuPrompt">
+  <p><strong>GTIN not linked. Enter SKU:</strong></p>
+  <input type="text" id="skuSearch" placeholder="Search SKU...">
+  <ul id="skuList"></ul>
+</div>
+
+<button onclick="goBack()">← Back</button>
+
+<script src="config.js"></script>
+
+<script>
+// SOUNDS
+const successSound = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+const failSound = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
+const warningSound = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
+
+let gtinMap = new Map(); // GTIN -> SKU
+let skuList = []; // all SKUs
+let lastScannedGTIN = null;
+
+// LOAD DATA
+async function loadData() {
+  const response = await fetch(CONFIG.CSV_URL);
+  const text = await response.text();
+
+  const rows = text.trim().split("\n").map(r => r.split(","));
+  rows.shift();
+
+  gtinMap.clear();
+  skuList = [];
+
+  rows.forEach(row => {
+    const item = row[0]?.trim();
+    const gtin = row[1]?.trim();
+
+    if (item) skuList.push(item);
+    if (item && gtin) gtinMap.set(gtin, item);
+  });
+}
+
+// EXTRACT GTIN
+function extractGTIN(scan) {
+  const match = scan.match(/\(01\)(\d{14})/);
+  return match ? match[1] : null;
+}
+
+// BANNER
+function showBanner(text, color) {
+  const banner = document.getElementById("banner");
+  banner.textContent = text;
+  banner.style.background = color;
+  banner.style.display = "block";
+
+  setTimeout(() => {
+    banner.style.display = "none";
+  }, 2000);
+}
+
+// SHOW SKU PROMPT
+function showSkuPrompt(gtin) {
+  lastScannedGTIN = gtin;
+
+  const prompt = document.getElementById("skuPrompt");
+  const list = document.getElementById("skuList");
+  const input = document.getElementById("skuSearch");
+
+  prompt.style.display = "block";
+  list.innerHTML = "";
+  input.value = "";
+  input.focus();
+
+  renderSkuList("");
+}
+
+// RENDER SKU LIST (FILTERED)
+function renderSkuList(filter) {
+  const list = document.getElementById("skuList");
+  list.innerHTML = "";
+
+  const filtered = skuList.filter(sku =>
+    sku.toLowerCase().includes(filter.toLowerCase())
+  ).slice(0, 10); // limit results
+
+  filtered.forEach(sku => {
+    const li = document.createElement("li");
+    li.textContent = sku;
+    li.style.cursor = "pointer";
+
+    li.onclick = () => assignSku(sku);
+
+    list.appendChild(li);
+  });
+}
+
+// ASSIGN SKU TO GTIN
+async function assignSku(sku) {
+  if (!lastScannedGTIN) return;
+
+  await fetch(CONFIG.API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "assignSku",
+      item: sku,
+      gtin: lastScannedGTIN
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  showBanner("Linked: " + sku, "blue");
+
+  document.getElementById("skuPrompt").style.display = "none";
+
+  await loadData(); // refresh local cache
+}
+
+// HANDLE SCAN
+function handleScan(value) {
+  const gtin = extractGTIN(value);
+  const result = document.getElementById("result");
+
+  document.getElementById("skuPrompt").style.display = "none";
+
+  // ❌ NO GTIN
+  if (!gtin) {
+    result.textContent = "❌ No GTIN found";
+    failSound.play();
+    showBanner("Invalid barcode", "red");
+    return;
+  }
+
+  // ✅ FOUND
+  if (gtinMap.has(gtin)) {
+    const sku = gtinMap.get(gtin);
+
+    result.textContent = "✅ FOUND: " + gtin;
+    successSound.play();
+    showBanner("SKU: " + sku, "green");
+    return;
+  }
+
+  // ⚠️ GTIN but no SKU
+  result.textContent = "⚠️ GTIN not linked: " + gtin;
+  warningSound.play();
+  showBanner("Unlinked GTIN", "orange");
+
+  showSkuPrompt(gtin);
+}
+
+// INPUT LISTENER
+document.getElementById("scanInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") {
+    const value = this.value.trim();
+    handleScan(value);
+    this.value = "";
+  }
+});
+
+// SKU SEARCH FILTER
+document.getElementById("skuSearch").addEventListener("input", function() {
+  renderSkuList(this.value);
+});
+
+// BACK
+function goBack() {
+  window.location.href = "index.html";
+}
+
+// INIT
+window.onload = loadData;
+</script>
+
+</body>
+</html>

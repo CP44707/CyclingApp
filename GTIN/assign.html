@@ -16,8 +16,8 @@
     font-family: sans-serif;
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
+    align-items: center;
   }
 
   #search {
@@ -118,7 +118,7 @@ async function loadSKUs() {
 loadSKUs();
 
 // --------------------
-// LIVE SEARCH
+// LIVE SEARCH UI
 // --------------------
 search.addEventListener("input", () => {
   const q = search.value.toLowerCase();
@@ -151,7 +151,7 @@ search.addEventListener("input", () => {
 });
 
 // --------------------
-// SAFE ASSIGN (FIXES NETWORK ERROR ISSUE)
+// ASSIGN (CORS SAFE VERSION)
 // --------------------
 document.getElementById("assignBtn").onclick = async () => {
   if (!selectedSKU) {
@@ -167,22 +167,20 @@ document.getElementById("assignBtn").onclick = async () => {
   try {
     const res = await fetch(CONFIG.API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sku: selectedSKU,
         gtin: gtin
       })
     });
 
-    // IMPORTANT FIX: never assume JSON is valid
     const text = await res.text();
 
     let result;
     try {
       result = JSON.parse(text);
     } catch (e) {
-      console.log("Bad response from server:", text);
-      throw new Error("Server did not return JSON");
+      console.log("RAW RESPONSE:", text);
+      throw new Error("Invalid server response");
     }
 
     if (result.success) {

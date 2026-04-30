@@ -7,8 +7,8 @@
     html, body {
       margin: 0;
       padding: 0;
-      height: 100%;
       font-family: Arial;
+      height: 100%;
       overflow: hidden;
     }
 
@@ -19,36 +19,34 @@
       width: 100%;
       color: white;
       text-align: center;
-      font-size: 18px;
+      font-size: 20px;
       padding: 10px;
       display: none;
       z-index: 10;
     }
 
-    #wrap {
+    #container {
+      padding: 60px 10px 10px;
+      box-sizing: border-box;
       height: 100%;
       display: flex;
       flex-direction: column;
-      padding: 10px;
-      box-sizing: border-box;
-      padding-top: 50px;
+      gap: 10px;
     }
 
     #scanInput {
       width: 100%;
-      font-size: 22px;
+      font-size: 24px;
       padding: 12px;
       box-sizing: border-box;
     }
 
     #status {
-      font-size: 16px;
-      margin-top: 10px;
+      font-size: 18px;
     }
 
     #skuBox {
       display: none;
-      margin-top: 10px;
       border: 2px solid orange;
       padding: 10px;
       flex: 1;
@@ -63,23 +61,20 @@
     }
 
     #skuList {
-      margin: 10px 0 0 0;
-      padding: 0;
       list-style: none;
-      overflow: hidden;
+      padding: 0;
+      margin: 10px 0 0;
     }
 
     #skuList li {
-      padding: 8px;
+      padding: 10px;
       border-bottom: 1px solid #ddd;
-      font-size: 16px;
     }
 
     button {
-      width: 100%;
       font-size: 18px;
       padding: 10px;
-      margin-top: 10px;
+      width: 100%;
     }
   </style>
 </head>
@@ -88,14 +83,13 @@
 
 <div id="banner"></div>
 
-<div id="wrap">
+<div id="container">
 
   <input id="scanInput" placeholder="Scan barcode..." autocomplete="off">
-
   <div id="status"></div>
 
   <div id="skuBox">
-    <div><b>Assign SKU</b></div>
+    <div><b>GTIN not found — select SKU</b></div>
     <input id="skuSearch" placeholder="Search SKU...">
     <ul id="skuList"></ul>
   </div>
@@ -107,23 +101,23 @@
 <script src="config.js"></script>
 
 <script>
+// --------------------
 // SOUNDS
-const ok = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
-const bad = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
-const warn = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
-
-// DATA
-let map = new Map();
-let skuList = [];
-let lastGTIN = null;
-let inSkuMode = false;
-
-// BUFFER (for scanners that don't send Enter)
-let buffer = "";
-let lastKeyTime = Date.now();
+// --------------------
+const okSound = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+const badSound = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
+const warnSound = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
 
 // --------------------
-// LOAD DATA
+// DATA
+// --------------------
+let gtinToSku = new Map();
+let skuList = [];
+let currentGTIN = null;
+let inSkuMode = false;
+
+// --------------------
+// LOAD SHEET DATA
 // --------------------
 async function loadData() {
   const res = await fetch(CONFIG.CSV_URL);
@@ -132,7 +126,7 @@ async function loadData() {
   const rows = text.trim().split("\n").map(r => r.split(","));
   rows.shift();
 
-  map.clear();
+  gtinToSku.clear();
   skuList = [];
 
   rows.forEach(r => {
@@ -140,66 +134,67 @@ async function loadData() {
     const gtin = (r[1] || "").trim();
 
     if (sku) skuList.push(sku);
-    if (sku && gtin) map.set(gtin, sku);
+    if (sku && gtin) gtinToSku.set(gtin, sku);
   });
 }
 
 // --------------------
 // GTIN EXTRACT
 // --------------------
-function extractGTIN(v) {
-  const m = v.match(/01(\d{14})/);
+function getGTIN(str) {
+  const m = str.match(/01(\d{14})/);
   return m ? m[1] : null;
 }
 
 // --------------------
-// UI HELPERS
+// UI
 // --------------------
-function banner(t, c) {
+function banner(text, color) {
   const b = document.getElementById("banner");
-  b.textContent = t;
-  b.style.background = c;
+  b.textContent = text;
+  b.style.background = color;
   b.style.display = "block";
-  setTimeout(() => b.style.display = "none", 1200);
+  setTimeout(() => b.style.display = "none", 1500);
 }
 
-function status(t) {
-  document.getElementById("status").textContent = t;
+function status(text) {
+  document.getElementById("status").textContent = text;
 }
 
 // --------------------
-// MAIN SCAN LOGIC
+// CORE SCAN LOGIC
 // --------------------
-function processScan(val) {
+function processScan(value) {
   if (inSkuMode) return;
 
-  const gtin = extractGTIN(val);
+  const gtin = getGTIN(value);
 
   document.getElementById("skuBox").style.display = "none";
 
   // ❌ NO GTIN
   if (!gtin) {
     status("No GTIN found");
-    bad.play();
+    badSound.play();
     banner("Invalid barcode", "red");
     return;
   }
 
-  // ✅ FOUND
-  if (map.has(gtin)) {
-    const sku = map.get(gtin);
+  // ✅ EXISTS
+  if (gtinToSku.has(gtin)) {
+    const sku = gtinToSku.get(gtin);
+
     status("SKU: " + sku);
-    ok.play();
+    okSound.play();
     banner("SKU: " + sku, "green");
     return;
   }
 
-  // ⚠️ UNLINKED
+  // ⚠️ NOT FOUND
   status("Unlinked GTIN: " + gtin);
-  warn.play();
+  warnSound.play();
   banner("Assign SKU", "orange");
 
-  lastGTIN = gtin;
+  currentGTIN = gtin;
   openSkuMode();
 }
 
@@ -212,41 +207,45 @@ function openSkuMode() {
   const box = document.getElementById("skuBox");
   box.style.display = "block";
 
-  renderSku("");
-  document.getElementById("skuSearch").focus();
+  renderSkuList("");
+
+  setTimeout(() => {
+    document.getElementById("skuSearch").focus();
+  }, 50);
 }
 
-function renderSku(f) {
+function renderSkuList(filter) {
   const list = document.getElementById("skuList");
   list.innerHTML = "";
 
   skuList
-    .filter(s => s.toLowerCase().includes(f.toLowerCase()))
-    .slice(0, 10)
+    .filter(s => s.toLowerCase().includes(filter.toLowerCase()))
+    .slice(0, 12)
     .forEach(sku => {
       const li = document.createElement("li");
       li.textContent = sku;
-
-      li.onclick = () => assign(sku);
-
+      li.onclick = () => assignSku(sku);
       list.appendChild(li);
     });
 }
 
-async function assign(sku) {
+// --------------------
+// ASSIGN SKU
+// --------------------
+async function assignSku(sku) {
   await fetch(CONFIG.API_URL, {
     method: "POST",
     body: JSON.stringify({
       action: "assignSku",
       item: sku,
-      gtin: lastGTIN
+      gtin: currentGTIN
     }),
     headers: { "Content-Type": "application/json" }
   });
 
-  map.set(lastGTIN, sku);
+  gtinToSku.set(currentGTIN, sku);
 
-  ok.play();
+  okSound.play();
   banner("Saved: " + sku, "blue");
   status("Linked: " + sku);
 
@@ -257,59 +256,41 @@ async function assign(sku) {
 }
 
 // --------------------
-// INPUT HANDLING
+// EVENTS
 // --------------------
-
-// auto scan without Enter (buffer-based)
-document.addEventListener("keydown", e => {
-  const now = Date.now();
-
-  if (now - lastKeyTime > 100) buffer = "";
-  lastKeyTime = now;
-
-  if (inSkuMode) return;
-
+document.getElementById("scanInput").addEventListener("keydown", e => {
   if (e.key === "Enter") {
-    if (buffer.length > 0) {
-      processScan(buffer);
-      buffer = "";
-    }
-    return;
-  }
-
-  if (e.key.length === 1) {
-    buffer += e.key;
+    processScan(e.target.value.trim());
+    e.target.value = "";
   }
 });
 
-// SKU search
 document.getElementById("skuSearch").addEventListener("input", e => {
-  renderSku(e.target.value);
+  renderSkuList(e.target.value);
 });
 
-// --------------------
-// FOCUS CONTROL
-// --------------------
+// KEEP SCAN FOCUS (SAFE)
 function focusScan() {
   if (!inSkuMode) {
     document.getElementById("scanInput").focus();
   }
 }
 
-// aggressive focus lock for scanners
 setInterval(() => {
-  if (!inSkuMode) focusScan();
-}, 300);
+  if (!inSkuMode && document.activeElement.id !== "skuSearch") {
+    focusScan();
+  }
+}, 400);
 
-// --------------------
-// BACK
-// --------------------
+// INIT
+window.onload = () => {
+  loadData();
+  focusScan();
+};
+
 function goBack() {
   window.location.href = "index.html";
 }
-
-// INIT
-window.onload = loadData;
 </script>
 
 </body>

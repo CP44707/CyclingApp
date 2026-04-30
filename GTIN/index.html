@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SKU ↔ GTIN Manager</title>
+</head>
+<body>
+
+<h2>Add Item</h2>
+
+<input type="text" id="item" placeholder="Enter SKU">
+<input type="text" id="gtin" placeholder="Enter GTIN">
+
+<button onclick="sendData()">Save</button>
+<button onclick="getData()">Load Data</button>
+
+<table border="1">
+  <thead>
+    <tr>
+      <th>Item (SKU)</th>
+      <th>GTIN</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+
+<script src="config.js"></script>
+
+<script>
+async function sendData() {
+  const item = document.getElementById("item").value;
+  const gtin = document.getElementById("gtin").value;
+
+  if (!item || !gtin) {
+    alert("Both fields are required");
+    return;
+  }
+
+  await fetch(CONFIG.API_URL, {
+    method: "POST",
+    body: JSON.stringify({ item, gtin }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  alert("Saved!");
+}
+
+// CSV parser (simple)
+function parseCSV(text) {
+  const rows = text.trim().split("\n");
+  return rows.map(row => row.split(","));
+}
+
+async function getData() {
+  const response = await fetch(CONFIG.CSV_URL);
+  const text = await response.text();
+
+  const rows = parseCSV(text);
+
+  // remove header
+  rows.shift();
+
+  const tbody = document.getElementById("tableBody");
+  tbody.innerHTML = "";
+
+  rows.forEach(row => {
+    const [item, gtin] = row;
+
+    const tr = document.createElement("tr");
+
+    const tdItem = document.createElement("td");
+    tdItem.textContent = item;
+
+    const tdGtin = document.createElement("td");
+    tdGtin.textContent = gtin;
+
+    tr.appendChild(tdItem);
+    tr.appendChild(tdGtin);
+    tbody.appendChild(tr);
+  });
+}
+</script>
+
+</body>
+</html>

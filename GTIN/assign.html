@@ -14,11 +14,10 @@
     background: #111;
     color: white;
     font-family: sans-serif;
-
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
   }
 
   #search {
@@ -32,8 +31,8 @@
     max-height: 90px;
     overflow-y: auto;
     background: #1b1b1b;
-    margin-top: 5px;
     border: 1px solid #333;
+    margin-top: 5px;
   }
 
   .item {
@@ -46,17 +45,17 @@
     background: #333;
   }
 
-  #status {
-    font-size: 12px;
-    margin-top: 5px;
-    text-align: center;
-  }
-
   button {
     width: 90%;
     padding: 8px;
-    margin-top: 5px;
+    margin-top: 6px;
     font-size: 14px;
+  }
+
+  #status {
+    font-size: 12px;
+    margin-top: 6px;
+    text-align: center;
   }
 
   .ok { color: lime; }
@@ -119,19 +118,18 @@ async function loadSKUs() {
 loadSKUs();
 
 // --------------------
-// LIVE SEARCH (REAL UX)
+// LIVE SEARCH
 // --------------------
 search.addEventListener("input", () => {
   const q = search.value.toLowerCase();
   results.innerHTML = "";
-
   selectedSKU = null;
 
   if (!q) return;
 
   const matches = allSKUs
-    .filter(sku => sku.toLowerCase().includes(q))
-    .slice(0, 10); // limit results
+    .filter(s => s.toLowerCase().includes(q))
+    .slice(0, 10);
 
   matches.forEach(sku => {
     const div = document.createElement("div");
@@ -153,11 +151,11 @@ search.addEventListener("input", () => {
 });
 
 // --------------------
-// ASSIGN
+// SAFE ASSIGN (FIXES NETWORK ERROR ISSUE)
 // --------------------
 document.getElementById("assignBtn").onclick = async () => {
   if (!selectedSKU) {
-    status.textContent = "Pick a SKU first";
+    status.textContent = "Select a SKU first";
     status.className = "bad";
     beep(150);
     return;
@@ -176,7 +174,16 @@ document.getElementById("assignBtn").onclick = async () => {
       })
     });
 
-    const result = await res.json();
+    // IMPORTANT FIX: never assume JSON is valid
+    const text = await res.text();
+
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (e) {
+      console.log("Bad response from server:", text);
+      throw new Error("Server did not return JSON");
+    }
 
     if (result.success) {
       status.textContent = "Assigned!";
@@ -186,14 +193,16 @@ document.getElementById("assignBtn").onclick = async () => {
       setTimeout(() => {
         window.location.href = "scanner.html";
       }, 700);
+
     } else {
       status.textContent = result.error || "Failed";
       status.className = "bad";
       beep(150);
     }
 
-  } catch (e) {
-    status.textContent = "Network error";
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Network / server error";
     status.className = "bad";
     beep(150);
   }

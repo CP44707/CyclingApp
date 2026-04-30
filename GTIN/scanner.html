@@ -1,3 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+
+<title>Scanner</title>
+
+<style>
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #scanInput {
+    width: 90%;
+    font-size: 18px;
+    padding: 10px;
+    text-align: center;
+    border: none;
+    outline: none;
+  }
+
+  #status {
+    margin-top: 10px;
+    font-size: 14px;
+    text-align: center;
+  }
+</style>
+</head>
+
+<body>
+
+<input id="scanInput" placeholder="Scan barcode..." autofocus />
+<div id="status"></div>
+
 <script src="config.js"></script>
 <script>
 const input = document.getElementById("scanInput");
@@ -8,10 +53,8 @@ const map = new Map();
 // --------------------
 // AUDIO
 // --------------------
-const ok = new AudioContext();
-const bad = new AudioContext();
-
-function beep(freq, ctx, duration) {
+function beep(freq, duration) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const o = ctx.createOscillator();
   o.frequency.value = freq;
   o.connect(ctx.destination);
@@ -20,15 +63,15 @@ function beep(freq, ctx, duration) {
 }
 
 function goodBeep() {
-  beep(880, ok, 120);
+  beep(880, 120);
 }
 
 function badBeep() {
-  beep(180, bad, 300);
+  beep(180, 300);
 }
 
 // --------------------
-// NORMALIZE (IMPORTANT FIX)
+// NORMALIZE
 // --------------------
 function norm(v) {
   return (v || "")
@@ -39,33 +82,39 @@ function norm(v) {
 }
 
 // --------------------
-// LOAD CSV INTO MAP (YOUR ORIGINAL FIXED)
+// LOAD CSV INTO MAP
 // --------------------
 async function loadData() {
-  const res = await fetch(CONFIG.CSV_URL + "?cache=" + Date.now());
-  const text = await res.text();
+  try {
+    const res = await fetch(CONFIG.CSV_URL + "?cache=" + Date.now());
+    const text = await res.text();
 
-  const rows = text.trim().split("\n").map(r => r.split(","));
-  rows.shift(); // remove headers
+    const rows = text.trim().split("\n").map(r => r.split(","));
+    rows.shift(); // remove header
 
-  map.clear();
+    map.clear();
 
-  rows.forEach(r => {
-    const sku = norm(r[0]);
-    const gtin = norm(r[1]);
+    rows.forEach(r => {
+      const sku = norm(r[0]);
+      const gtin = norm(r[1]);
 
-    if (sku && gtin) {
-      map.set(gtin, sku);
-    }
-  });
+      if (sku && gtin) {
+        map.set(gtin, sku);
+      }
+    });
 
-  console.log("Loaded GTINs:", map.size);
+    console.log("Loaded GTINs:", map.size);
+  } catch (err) {
+    status.textContent = "Failed to load data";
+    status.style.color = "red";
+    badBeep();
+  }
 }
 
 loadData();
 
 // --------------------
-// UI HELPERS
+// UI HELP
 // --------------------
 function show(msg, color) {
   status.textContent = msg;
@@ -73,7 +122,17 @@ function show(msg, color) {
 }
 
 // --------------------
-// MAIN SCAN HANDLER
+// GTIN EXTRACTION
+// --------------------
+function extractGTIN(raw) {
+  raw = norm(raw);
+
+  const match = raw.match(/\(?01\)?(\d{14,18})/);
+  return match ? match[1] : null;
+}
+
+// --------------------
+// MAIN SCAN LOGIC
 // --------------------
 function handleScan(raw) {
   const gtin = extractGTIN(raw);
@@ -87,15 +146,14 @@ function handleScan(raw) {
 
   const cleanGTIN = norm(gtin);
 
-  // =========================
-  // FAST LOOKUP (FIXED CORE)
-  // =========================
+  // ✅ FAST LOOKUP
   if (map.has(cleanGTIN)) {
     const sku = map.get(cleanGTIN);
 
     show("SKU: " + sku, "#4dff88");
     goodBeep();
 
+    // ready for next scan
     setTimeout(() => {
       input.value = "";
       input.focus();
@@ -104,9 +162,7 @@ function handleScan(raw) {
     return;
   }
 
-  // =========================
-  // NOT FOUND → ASSIGN FLOW
-  // =========================
+  // ❌ NOT FOUND → ASSIGN
   show("GTIN not found → assign", "orange");
 
   window.location.href =
@@ -114,17 +170,8 @@ function handleScan(raw) {
 }
 
 // --------------------
-// GTIN PARSER
-// --------------------
-function extractGTIN(raw) {
-  raw = norm(raw);
-
-  const match = raw.match(/\(?01\)?(\d{14,18})/);
-  return match ? match[1] : null;
-}
-
-// --------------------
-// SCANNER INPUT (AUTO ENTER FIX)
+// SCANNER INPUT HANDLING
+// (works without Enter key)
 // --------------------
 let buffer = "";
 let timer = null;
@@ -139,7 +186,7 @@ input.addEventListener("input", (e) => {
       handleScan(buffer);
       buffer = "";
     }
-  }, 100);
+  }, 100); // adjust if needed for your scanner speed
 });
 
 // fallback Enter support
@@ -150,6 +197,9 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
-// keep focus (handheld stability)
+// keep focus (important for handheld scanners)
 setInterval(() => input.focus(), 500);
 </script>
+
+</body>
+</html>

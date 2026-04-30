@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Barcode Scanner</title>
+  <title>Scanner</title>
 
   <style>
     body {
       font-family: Arial;
+      margin: 0;
+      padding: 10px;
+      overflow: hidden;
     }
 
     #banner {
@@ -15,71 +18,105 @@
       width: 100%;
       color: white;
       text-align: center;
-      font-size: 24px;
-      padding: 15px;
+      font-size: 22px;
+      padding: 12px;
       display: none;
     }
 
-    #result {
-      margin-top: 80px;
+    #main {
+      margin-top: 60px;
+    }
+
+    #scanInput {
+      width: 100%;
+      font-size: 22px;
+      padding: 10px;
+    }
+
+    #status {
       font-size: 18px;
+      margin-top: 10px;
     }
 
-    #gs1Debug {
-      font-size: 14px;
-      color: gray;
-    }
-
-    #skuPrompt {
+    #skuBox {
       display: none;
-      margin-top: 20px;
-      padding: 15px;
+      margin-top: 10px;
       border: 2px solid orange;
+      padding: 10px;
     }
 
-    li {
-      cursor: pointer;
-      margin: 5px 0;
+    #skuSearch {
+      width: 100%;
+      font-size: 18px;
+      padding: 8px;
+    }
+
+    #skuList {
+      max-height: 200px;
+      overflow: hidden;
+      margin: 5px 0 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    #skuList li {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+      font-size: 16px;
+    }
+
+    #skuList li:active {
+      background: #eee;
+    }
+
+    button {
+      width: 100%;
+      font-size: 18px;
+      padding: 10px;
+      margin-top: 10px;
     }
   </style>
 </head>
+
 <body>
 
 <div id="banner"></div>
 
-<h2>Scanner Mode</h2>
-<p>Scan a barcode using your handheld scanner</p>
+<div id="main">
 
-<input type="text" id="scanInput" autofocus placeholder="Scan here..." style="width:300px; font-size:18px;">
+  <input id="scanInput" placeholder="Scan barcode..." autocomplete="off">
 
-<p id="result"></p>
-<p id="gs1Debug"></p>
+  <div id="status"></div>
 
-<!-- SKU PROMPT -->
-<div id="skuPrompt">
-  <p><strong>GTIN not linked. Enter SKU:</strong></p>
-  <input type="text" id="skuSearch" placeholder="Search SKU...">
-  <ul id="skuList"></ul>
+  <div id="skuBox">
+    <div><b>GTIN not found — assign SKU</b></div>
+    <input id="skuSearch" placeholder="Search SKU...">
+    <ul id="skuList"></ul>
+  </div>
+
+  <button onclick="goBack()">Back</button>
+
 </div>
-
-<button onclick="goBack()">← Back</button>
 
 <script src="config.js"></script>
 
 <script>
 // SOUNDS
-const successSound = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
-const failSound = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
-const warningSound = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
+const okSound = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+const badSound = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
+const warnSound = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
 
-let gtinMap = new Map(); // GTIN -> SKU
+// DATA
+let gtinMap = new Map();   // GTIN -> SKU
 let skuList = [];
-let lastScannedGTIN = null;
+let lastGTIN = null;
 
-// LOAD DATA
+// ----------------------
+// LOAD SHEET DATA
+// ----------------------
 async function loadData() {
-  const response = await fetch(CONFIG.CSV_URL);
-  const text = await response.text();
+  const res = await fetch(CONFIG.CSV_URL);
+  const text = await res.text();
 
   const rows = text.trim().split("\n").map(r => r.split(","));
   rows.shift();
@@ -87,168 +124,151 @@ async function loadData() {
   gtinMap.clear();
   skuList = [];
 
-  rows.forEach(row => {
-    const item = row[0]?.trim();
-    const gtin = row[1]?.trim();
+  rows.forEach(r => {
+    const sku = (r[0] || "").trim();
+    const gtin = (r[1] || "").trim();
 
-    if (item) skuList.push(item);
-    if (item && gtin) gtinMap.set(gtin, item);
+    if (sku) skuList.push(sku);
+    if (sku && gtin) gtinMap.set(gtin, sku);
   });
 }
 
-// PARSE GS1 (supports AI 01 detection anywhere)
-function parseGS1(scan) {
-  const results = [];
+// ----------------------
+// GS1 PARSE (AI 01 ONLY)
+// ----------------------
+function extractGTIN(scan) {
+  const match = scan.match(/01(\d{14})/);
+  return match ? match[1] : null;
+}
 
-  let i = 0;
-  while (i < scan.length) {
-    if (scan.substring(i, i + 2) === "01") {
-      const gtin = scan.substring(i + 2, i + 16);
+// ----------------------
+// UI HELPERS
+// ----------------------
+function setBanner(text, color) {
+  const b = document.getElementById("banner");
+  b.textContent = text;
+  b.style.background = color;
+  b.style.display = "block";
+  setTimeout(() => b.style.display = "none", 1500);
+}
 
-      if (/^\d{14}$/.test(gtin)) {
-        results.push({ ai: "01", value: gtin });
-        i += 16;
-        continue;
-      }
-    }
-    i++;
+function setStatus(text) {
+  document.getElementById("status").textContent = text;
+}
+
+// ----------------------
+// SCAN HANDLER
+// ----------------------
+function handleScan(val) {
+  const gtin = extractGTIN(val);
+
+  document.getElementById("skuBox").style.display = "none";
+
+  // ❌ NO GTIN
+  if (!gtin) {
+    setStatus("❌ No GTIN found");
+    badSound.play();
+    setBanner("Invalid barcode", "red");
+    return;
   }
 
-  return results;
+  // ✅ GTIN FOUND IN SHEET
+  if (gtinMap.has(gtin)) {
+    const sku = gtinMap.get(gtin);
+
+    setStatus("SKU: " + sku);
+    okSound.play();
+    setBanner("SKU: " + sku, "green");
+    return;
+  }
+
+  // ⚠️ GTIN NOT IN SHEET
+  setStatus("⚠️ Unlinked GTIN: " + gtin);
+  warnSound.play();
+  setBanner("Assign SKU", "orange");
+
+  lastGTIN = gtin;
+  showSkuBox();
 }
 
-// BANNER
-function showBanner(text, color) {
-  const banner = document.getElementById("banner");
-  banner.textContent = text;
-  banner.style.background = color;
-  banner.style.display = "block";
-
-  setTimeout(() => {
-    banner.style.display = "none";
-  }, 2000);
-}
-
-// SHOW SKU PROMPT
-function showSkuPrompt(gtin) {
-  lastScannedGTIN = gtin;
-
-  const prompt = document.getElementById("skuPrompt");
-  const input = document.getElementById("skuSearch");
-
-  prompt.style.display = "block";
-  input.value = "";
-  input.focus();
+// ----------------------
+// SKU ASSIGN UI
+// ----------------------
+function showSkuBox() {
+  const box = document.getElementById("skuBox");
+  box.style.display = "block";
 
   renderSkuList("");
+  document.getElementById("skuSearch").focus();
 }
 
-// RENDER SKU LIST
 function renderSkuList(filter) {
   const list = document.getElementById("skuList");
   list.innerHTML = "";
 
-  const filtered = skuList
-    .filter(sku => sku.toLowerCase().includes(filter.toLowerCase()))
-    .slice(0, 10);
+  skuList
+    .filter(s => s.toLowerCase().includes(filter.toLowerCase()))
+    .slice(0, 12)
+    .forEach(sku => {
+      const li = document.createElement("li");
+      li.textContent = sku;
 
-  filtered.forEach(sku => {
-    const li = document.createElement("li");
-    li.textContent = sku;
-    li.onclick = () => assignSku(sku);
-    list.appendChild(li);
-  });
+      li.onclick = () => assignSKU(sku);
+
+      list.appendChild(li);
+    });
 }
 
-// ASSIGN SKU TO GTIN
-async function assignSku(sku) {
-  if (!lastScannedGTIN) return;
+async function assignSKU(sku) {
+  if (!lastGTIN) return;
 
   await fetch(CONFIG.API_URL, {
     method: "POST",
     body: JSON.stringify({
       action: "assignSku",
       item: sku,
-      gtin: lastScannedGTIN
+      gtin: lastGTIN
     }),
-    headers: {
-      "Content-Type": "application/json"
-    }
+    headers: { "Content-Type": "application/json" }
   });
 
-  showBanner("Linked: " + sku, "blue");
+  gtinMap.set(lastGTIN, sku);
 
-  document.getElementById("skuPrompt").style.display = "none";
+  setStatus("✔ Linked: " + sku);
+  setBanner("Saved", "blue");
+  okSound.play();
 
-  await loadData();
+  document.getElementById("skuBox").style.display = "none";
 }
 
-// HANDLE SCAN
-function handleScan(value) {
-  const result = document.getElementById("result");
-  const debug = document.getElementById("gs1Debug");
+// ----------------------
+// EVENTS
+// ----------------------
 
-  document.getElementById("skuPrompt").style.display = "none";
-
-  const elements = parseGS1(value);
-
-  // DEBUG OUTPUT
-  if (elements.length > 0) {
-    debug.textContent = "GS1 Found: " + elements.map(e => `${e.ai}:${e.value}`).join(" | ");
-  } else {
-    debug.textContent = "No GS1 elements detected";
-  }
-
-  const gtinObj = elements.find(e => e.ai === "01");
-  const gtin = gtinObj ? gtinObj.value : null;
-
-  // ❌ NO GTIN
-  if (!gtin) {
-    result.textContent = "❌ No GTIN found";
-    failSound.play();
-    showBanner("Invalid barcode", "red");
-    return;
-  }
-
-  // ✅ FOUND
-  if (gtinMap.has(gtin)) {
-    const sku = gtinMap.get(gtin);
-
-    result.textContent = "✅ FOUND: " + gtin;
-    successSound.play();
-    showBanner("SKU: " + sku, "green");
-    return;
-  }
-
-  // ⚠️ GTIN but no SKU
-  result.textContent = "⚠️ GTIN not linked: " + gtin;
-  warningSound.play();
-  showBanner("Unlinked GTIN", "orange");
-
-  showSkuPrompt(gtin);
-}
-
-// INPUT LISTENER
-document.getElementById("scanInput").addEventListener("keydown", function(e) {
+// scanner input (ENTER triggers scan)
+document.getElementById("scanInput").addEventListener("keydown", e => {
   if (e.key === "Enter") {
-    const value = this.value.trim();
-    handleScan(value);
-    this.value = "";
+    handleScan(e.target.value.trim());
+    e.target.value = "";
   }
 });
 
-// SKU SEARCH
-document.getElementById("skuSearch").addEventListener("input", function() {
-  renderSkuList(this.value);
+// SKU search
+document.getElementById("skuSearch").addEventListener("input", e => {
+  renderSkuList(e.target.value);
 });
 
-// BACK
-function goBack() {
-  window.location.href = "index.html";
-}
+// KEEP FOCUS ALWAYS (handheld scanner mode)
+setInterval(() => {
+  document.getElementById("scanInput").focus();
+}, 500);
 
 // INIT
 window.onload = loadData;
+
+function goBack() {
+  window.location.href = "index.html";
+}
 </script>
 
 </body>

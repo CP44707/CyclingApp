@@ -21,17 +21,42 @@
     align-items: center;
   }
 
-  input, select, button {
+  #search {
     width: 90%;
     font-size: 14px;
     padding: 8px;
-    margin: 5px 0;
+  }
+
+  #results {
+    width: 90%;
+    max-height: 90px;
+    overflow-y: auto;
+    background: #1b1b1b;
+    margin-top: 5px;
+    border: 1px solid #333;
+  }
+
+  .item {
+    padding: 6px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+  }
+
+  .item:hover {
+    background: #333;
   }
 
   #status {
     font-size: 12px;
     margin-top: 5px;
     text-align: center;
+  }
+
+  button {
+    width: 90%;
+    padding: 8px;
+    margin-top: 5px;
+    font-size: 14px;
   }
 
   .ok { color: lime; }
@@ -41,11 +66,8 @@
 
 <body>
 
-<h4>Assign GTIN</h4>
-
 <input id="search" placeholder="Search SKU..." />
-
-<select id="skuSelect" size="4"></select>
+<div id="results"></div>
 
 <button id="assignBtn">Assign GTIN</button>
 
@@ -55,11 +77,14 @@
 
 <script>
 const search = document.getElementById("search");
-const select = document.getElementById("skuSelect");
+const results = document.getElementById("results");
 const status = document.getElementById("status");
 
 const params = new URLSearchParams(window.location.search);
 const gtin = params.get("gtin");
+
+let allSKUs = [];
+let selectedSKU = null;
 
 // --------------------
 // BEEP
@@ -74,17 +99,8 @@ function beep(freq) {
 }
 
 // --------------------
-// CLEAN
+// LOAD CSV
 // --------------------
-function clean(v) {
-  return (v || "").toString().replace(/\r/g, "").trim();
-}
-
-// --------------------
-// LOAD SKUs FROM CSV
-// --------------------
-let allSKUs = [];
-
 async function loadSKUs() {
   const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
   const text = await res.text();
@@ -95,49 +111,53 @@ async function loadSKUs() {
 
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",");
-    const sku = clean(cols[0]);
-
+    const sku = (cols[0] || "").trim();
     if (sku) allSKUs.push(sku);
   }
-
-  renderList(allSKUs);
 }
 
-// --------------------
-// RENDER DROPDOWN
-// --------------------
-function renderList(list) {
-  select.innerHTML = "";
-
-  list.forEach(sku => {
-    const opt = document.createElement("option");
-    opt.value = sku;
-    opt.textContent = sku;
-    select.appendChild(opt);
-  });
-}
+loadSKUs();
 
 // --------------------
-// LIVE FILTER
+// LIVE SEARCH (REAL UX)
 // --------------------
 search.addEventListener("input", () => {
   const q = search.value.toLowerCase();
+  results.innerHTML = "";
 
-  const filtered = allSKUs.filter(sku =>
-    sku.toLowerCase().includes(q)
-  );
+  selectedSKU = null;
 
-  renderList(filtered);
+  if (!q) return;
+
+  const matches = allSKUs
+    .filter(sku => sku.toLowerCase().includes(q))
+    .slice(0, 10); // limit results
+
+  matches.forEach(sku => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.textContent = sku;
+
+    div.onclick = () => {
+      selectedSKU = sku;
+      search.value = sku;
+      results.innerHTML = "";
+
+      status.textContent = "Selected: " + sku;
+      status.className = "ok";
+      beep(880);
+    };
+
+    results.appendChild(div);
+  });
 });
 
 // --------------------
-// ASSIGN TO SHEET
+// ASSIGN
 // --------------------
 document.getElementById("assignBtn").onclick = async () => {
-  const sku = select.value;
-
-  if (!sku) {
-    status.textContent = "Select a SKU";
+  if (!selectedSKU) {
+    status.textContent = "Pick a SKU first";
     status.className = "bad";
     beep(150);
     return;
@@ -150,7 +170,10 @@ document.getElementById("assignBtn").onclick = async () => {
     const res = await fetch(CONFIG.API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku, gtin })
+      body: JSON.stringify({
+        sku: selectedSKU,
+        gtin: gtin
+      })
     });
 
     const result = await res.json();
@@ -169,14 +192,12 @@ document.getElementById("assignBtn").onclick = async () => {
       beep(150);
     }
 
-  } catch (err) {
+  } catch (e) {
     status.textContent = "Network error";
     status.className = "bad";
     beep(150);
   }
 };
-
-loadSKUs();
 </script>
 
 </body>

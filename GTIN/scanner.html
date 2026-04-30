@@ -3,112 +3,129 @@
 const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
 
-input.focus();
+const map = new Map();
 
-// keep focus always (important for handheld devices)
-setInterval(() => input.focus(), 500);
+// --------------------
+// AUDIO
+// --------------------
+const ok = new AudioContext();
+const bad = new AudioContext();
 
-// --- sounds ---
-function beepGood() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, ctx, duration) {
   const o = ctx.createOscillator();
-  o.frequency.value = 880;
+  o.frequency.value = freq;
   o.connect(ctx.destination);
   o.start();
-  setTimeout(() => o.stop(), 120);
+  setTimeout(() => o.stop(), duration);
 }
 
-function beepBad() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
-  o.frequency.value = 180;
-  o.connect(ctx.destination);
-  o.start();
-  setTimeout(() => o.stop(), 300);
+function goodBeep() {
+  beep(880, ok, 120);
 }
 
-// --- CSV parsing (FIXED safer split + trim) ---
-function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split("\t").map(h => h.trim());
-
-  return lines.slice(1).map(line => {
-    const cols = line.split("\t");
-
-    let obj = {};
-    headers.forEach((h, i) => {
-      obj[h] = (cols[i] || "").trim();
-    });
-
-    return obj;
-  });
+function badBeep() {
+  beep(180, bad, 300);
 }
 
-// --- GTIN extraction (GS1 AI 01) ---
-function extractGTIN(raw) {
-  raw = raw.trim();
-
-  const match = raw.match(/\(?01\)?(\d{14,18})/);
-  if (!match) return null;
-
-  return match[1];
-}
-
-// --- normalize helper (IMPORTANT FIX) ---
+// --------------------
+// NORMALIZE (IMPORTANT FIX)
+// --------------------
 function norm(v) {
-  return (v || "").toString().trim().replace(/\s+/g, "");
+  return (v || "")
+    .toString()
+    .trim()
+    .replace(/\r/g, "")
+    .replace(/\s+/g, "");
 }
 
-// --- main scan handler (NOW AUTO TRIGGERS) ---
-async function handleScan(raw) {
+// --------------------
+// LOAD CSV INTO MAP (YOUR ORIGINAL FIXED)
+// --------------------
+async function loadData() {
+  const res = await fetch(CONFIG.CSV_URL + "?cache=" + Date.now());
+  const text = await res.text();
+
+  const rows = text.trim().split("\n").map(r => r.split(","));
+  rows.shift(); // remove headers
+
+  map.clear();
+
+  rows.forEach(r => {
+    const sku = norm(r[0]);
+    const gtin = norm(r[1]);
+
+    if (sku && gtin) {
+      map.set(gtin, sku);
+    }
+  });
+
+  console.log("Loaded GTINs:", map.size);
+}
+
+loadData();
+
+// --------------------
+// UI HELPERS
+// --------------------
+function show(msg, color) {
+  status.textContent = msg;
+  status.style.color = color;
+}
+
+// --------------------
+// MAIN SCAN HANDLER
+// --------------------
+function handleScan(raw) {
   const gtin = extractGTIN(raw);
 
   if (!gtin) {
-    status.textContent = "Invalid barcode";
-    status.style.color = "red";
-    beepBad();
+    show("Invalid barcode", "red");
+    badBeep();
+    input.focus();
     return;
   }
 
-  try {
-    const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
-    const text = await res.text();
-    const data = parseCSV(text);
+  const cleanGTIN = norm(gtin);
 
-    // FIX: normalize both sides so mismatches don't happen
-    const match = data.find(r => norm(r.GTIN) === norm(gtin));
+  // =========================
+  // FAST LOOKUP (FIXED CORE)
+  // =========================
+  if (map.has(cleanGTIN)) {
+    const sku = map.get(cleanGTIN);
 
-    if (match) {
-      status.textContent = "SKU: " + match.Item;
-      status.style.color = "#4dff88";
-      beepGood();
+    show("SKU: " + sku, "#4dff88");
+    goodBeep();
 
-      // READY FOR NEXT SCAN IMMEDIATELY
-      setTimeout(() => {
-        input.value = "";
-        input.focus();
-      }, 300);
+    setTimeout(() => {
+      input.value = "";
+      input.focus();
+    }, 200);
 
-    } else {
-      // not found → assign
-      window.location.href = `assign.html?gtin=${encodeURIComponent(gtin)}`;
-    }
-
-  } catch (err) {
-    status.textContent = "Fetch error";
-    status.style.color = "red";
-    beepBad();
+    return;
   }
+
+  // =========================
+  // NOT FOUND → ASSIGN FLOW
+  // =========================
+  show("GTIN not found → assign", "orange");
+
+  window.location.href =
+    "assign.html?gtin=" + encodeURIComponent(cleanGTIN);
 }
 
-/*
-=====================================================
-FIX: AUTO-DETECT SCANNER INPUT (NO ENTER REQUIRED)
-=====================================================
-Most handheld scanners send a burst of characters fast.
-We detect "typing burst end" instead of waiting for Enter.
-*/
+// --------------------
+// GTIN PARSER
+// --------------------
+function extractGTIN(raw) {
+  raw = norm(raw);
 
+  const match = raw.match(/\(?01\)?(\d{14,18})/);
+  return match ? match[1] : null;
+}
+
+// --------------------
+// SCANNER INPUT (AUTO ENTER FIX)
+// --------------------
 let buffer = "";
 let timer = null;
 
@@ -120,14 +137,19 @@ input.addEventListener("input", (e) => {
   timer = setTimeout(() => {
     if (buffer.length > 0) {
       handleScan(buffer);
+      buffer = "";
     }
-  }, 120); // adjust 80–200ms depending on scanner speed
+  }, 100);
 });
 
-// still support Enter if scanner sends it
+// fallback Enter support
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     handleScan(input.value);
+    input.value = "";
   }
 });
+
+// keep focus (handheld stability)
+setInterval(() => input.focus(), 500);
 </script>

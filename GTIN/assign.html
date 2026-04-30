@@ -14,13 +14,14 @@
     background: #111;
     color: white;
     font-family: sans-serif;
+
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
+    align-items: center;
   }
 
-  input, button {
+  input, select, button {
     width: 90%;
     font-size: 14px;
     padding: 8px;
@@ -42,19 +43,20 @@
 
 <h4>Assign GTIN</h4>
 
-<input id="skuSearch" placeholder="Search SKU..." list="skuList" />
-<datalist id="skuList"></datalist>
+<input id="search" placeholder="Search SKU..." />
 
-<button id="assignBtn">Assign</button>
+<select id="skuSelect" size="4"></select>
+
+<button id="assignBtn">Assign GTIN</button>
 
 <div id="status"></div>
 
 <script src="config.js"></script>
 
 <script>
+const search = document.getElementById("search");
+const select = document.getElementById("skuSelect");
 const status = document.getElementById("status");
-const skuSearch = document.getElementById("skuSearch");
-const skuList = document.getElementById("skuList");
 
 const params = new URLSearchParams(window.location.search);
 const gtin = params.get("gtin");
@@ -79,38 +81,63 @@ function clean(v) {
 }
 
 // --------------------
-// LOAD SKU LIST FROM CSV
+// LOAD SKUs FROM CSV
 // --------------------
+let allSKUs = [];
+
 async function loadSKUs() {
   const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
   const text = await res.text();
 
   const lines = text.trim().split("\n");
 
-  skuList.innerHTML = "";
+  allSKUs = [];
 
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",");
     const sku = clean(cols[0]);
 
-    if (!sku) continue;
-
-    const opt = document.createElement("option");
-    opt.value = sku;
-    skuList.appendChild(opt);
+    if (sku) allSKUs.push(sku);
   }
+
+  renderList(allSKUs);
 }
 
-loadSKUs();
+// --------------------
+// RENDER DROPDOWN
+// --------------------
+function renderList(list) {
+  select.innerHTML = "";
+
+  list.forEach(sku => {
+    const opt = document.createElement("option");
+    opt.value = sku;
+    opt.textContent = sku;
+    select.appendChild(opt);
+  });
+}
 
 // --------------------
-// ASSIGN GTIN TO SHEET
+// LIVE FILTER
 // --------------------
-async function assign() {
-  const sku = skuSearch.value.trim();
+search.addEventListener("input", () => {
+  const q = search.value.toLowerCase();
+
+  const filtered = allSKUs.filter(sku =>
+    sku.toLowerCase().includes(q)
+  );
+
+  renderList(filtered);
+});
+
+// --------------------
+// ASSIGN TO SHEET
+// --------------------
+document.getElementById("assignBtn").onclick = async () => {
+  const sku = select.value;
 
   if (!sku) {
-    status.textContent = "Select a valid SKU";
+    status.textContent = "Select a SKU";
     status.className = "bad";
     beep(150);
     return;
@@ -123,33 +150,33 @@ async function assign() {
     const res = await fetch(CONFIG.API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sku: sku,
-        gtin: gtin
-      })
+      body: JSON.stringify({ sku, gtin })
     });
 
-    if (res.ok) {
+    const result = await res.json();
+
+    if (result.success) {
       status.textContent = "Assigned!";
       status.className = "ok";
       beep(880);
 
       setTimeout(() => {
         window.location.href = "scanner.html";
-      }, 800);
+      }, 700);
     } else {
-      throw new Error("Failed");
+      status.textContent = result.error || "Failed";
+      status.className = "bad";
+      beep(150);
     }
 
   } catch (err) {
-    status.textContent = "Error assigning";
+    status.textContent = "Network error";
     status.className = "bad";
     beep(150);
   }
-}
+};
 
-document.getElementById("assignBtn").onclick = assign;
-
+loadSKUs();
 </script>
 
 </body>

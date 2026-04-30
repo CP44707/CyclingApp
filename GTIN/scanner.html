@@ -125,10 +125,19 @@ function show(msg, color) {
 // GTIN EXTRACTION
 // --------------------
 function extractGTIN(raw) {
-  raw = norm(raw);
+  raw = (raw || "").toString().replace(/\s+/g, "");
 
-  const match = raw.match(/\(?01\)?(\d{14,18})/);
-  return match ? match[1] : null;
+  // find 01 + 14 digits anywhere in string
+  const match = raw.match(/01(\d{14})/);
+
+  if (!match) return null;
+
+  const gtin = match[1];
+
+  // extra safety: ensure no hidden trailing digits
+  if (!/^\d{14}$/.test(gtin)) return null;
+
+  return gtin;
 }
 
 // --------------------

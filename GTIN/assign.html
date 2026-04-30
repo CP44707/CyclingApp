@@ -2,38 +2,39 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 
 <title>Assign GTIN</title>
 
 <style>
   body {
     margin: 0;
-    font-family: sans-serif;
     width: 3.75in;
     height: 2.25in;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
     background: #111;
     color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
 
   input, button {
     width: 90%;
-    padding: 10px;
-    margin: 5px 0;
     font-size: 14px;
+    padding: 8px;
+    margin: 5px 0;
   }
 
-  #msg {
+  #status {
     font-size: 12px;
     margin-top: 5px;
+    text-align: center;
   }
 
-  .error { color: #ff4d4d; }
-  .ok { color: #4dff88; }
+  .ok { color: lime; }
+  .bad { color: red; }
 </style>
 </head>
 
@@ -41,100 +42,114 @@
 
 <h4>Assign GTIN</h4>
 
-<input id="skuSearch" list="skuList" placeholder="Search SKU..." />
+<input id="skuSearch" placeholder="Search SKU..." list="skuList" />
 <datalist id="skuList"></datalist>
 
-<button id="saveBtn">Assign GTIN</button>
+<button id="assignBtn">Assign</button>
 
-<div id="msg"></div>
+<div id="status"></div>
 
 <script src="config.js"></script>
+
 <script>
-const msg = document.getElementById("msg");
+const status = document.getElementById("status");
 const skuSearch = document.getElementById("skuSearch");
 const skuList = document.getElementById("skuList");
 
 const params = new URLSearchParams(window.location.search);
 const gtin = params.get("gtin");
 
-function beepGood() {
-  const ctx = new AudioContext();
+// --------------------
+// BEEP
+// --------------------
+function beep(freq) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const o = ctx.createOscillator();
-  o.frequency.value = 880;
+  o.frequency.value = freq;
   o.connect(ctx.destination);
   o.start();
   setTimeout(() => o.stop(), 120);
 }
 
-function beepBad() {
-  const ctx = new AudioContext();
-  const o = ctx.createOscillator();
-  o.frequency.value = 180;
-  o.connect(ctx.destination);
-  o.start();
-  setTimeout(() => o.stop(), 400);
+// --------------------
+// CLEAN
+// --------------------
+function clean(v) {
+  return (v || "").toString().replace(/\r/g, "").trim();
 }
 
-function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split("\t");
-  return lines.slice(1).map(line => {
-    const cols = line.split("\t");
-    let obj = {};
-    headers.forEach((h, i) => obj[h.trim()] = (cols[i] || "").trim());
-    return obj;
-  });
-}
-
+// --------------------
+// LOAD SKU LIST FROM CSV
+// --------------------
 async function loadSKUs() {
-  const res = await fetch(CONFIG.CSV_URL);
+  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
   const text = await res.text();
-  const data = parseCSV(text);
 
-  data.forEach(r => {
+  const lines = text.trim().split("\n");
+
+  skuList.innerHTML = "";
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const sku = clean(cols[0]);
+
+    if (!sku) continue;
+
     const opt = document.createElement("option");
-    opt.value = r.Item;
+    opt.value = sku;
     skuList.appendChild(opt);
-  });
+  }
 }
 
 loadSKUs();
 
-document.getElementById("saveBtn").onclick = async () => {
+// --------------------
+// ASSIGN GTIN TO SHEET
+// --------------------
+async function assign() {
   const sku = skuSearch.value.trim();
 
   if (!sku) {
-    msg.textContent = "Select a valid SKU";
-    msg.className = "error";
-    beepBad();
+    status.textContent = "Select a valid SKU";
+    status.className = "bad";
+    beep(150);
     return;
   }
+
+  status.textContent = "Assigning...";
+  status.className = "";
 
   try {
     const res = await fetch(CONFIG.API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku, gtin })
+      body: JSON.stringify({
+        sku: sku,
+        gtin: gtin
+      })
     });
 
     if (res.ok) {
-      msg.textContent = "Assigned!";
-      msg.className = "ok";
-      beepGood();
+      status.textContent = "Assigned!";
+      status.className = "ok";
+      beep(880);
 
       setTimeout(() => {
         window.location.href = "scanner.html";
       }, 800);
     } else {
-      throw new Error();
+      throw new Error("Failed");
     }
 
-  } catch (e) {
-    msg.textContent = "Save failed";
-    msg.className = "error";
-    beepBad();
+  } catch (err) {
+    status.textContent = "Error assigning";
+    status.className = "bad";
+    beep(150);
   }
-};
+}
+
+document.getElementById("assignBtn").onclick = assign;
+
 </script>
 
 </body>

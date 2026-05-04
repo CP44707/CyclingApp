@@ -108,7 +108,7 @@ function clean(v) {
 }
 
 // --------------------
-// FORMAT DATE → 26-Jan-04
+// FORMAT DATE
 // --------------------
 function formatExp(exp) {
   if (!exp || exp.length !== 6) return exp;
@@ -123,20 +123,52 @@ function formatExp(exp) {
 }
 
 // --------------------
-// PARSER (SMART GS1)
+// MASTER PARSER
 // --------------------
 function parseBarcode(raw) {
-  let data = clean(raw).replace(/\s+/g, "");
+  raw = clean(raw);
+
+  if (/\(01\)/.test(raw)) {
+    return parseBracketed(raw);
+  } else {
+    return parseRawGS1(raw);
+  }
+}
+
+// --------------------
+// BRACKETED PARSER
+// --------------------
+function parseBracketed(raw) {
+  let result = { gtin: null, exp: null, lot: null };
+
+  const gtinMatch = raw.match(/\(01\)(\d{14})/);
+  const expMatch = raw.match(/\(17\)(\d{6})/);
+  const lotMatch = raw.match(/\(10\)([^\(]+)/);
+
+  if (gtinMatch) result.gtin = gtinMatch[1];
+  if (expMatch) result.exp = expMatch[1];
+  if (lotMatch) result.lot = lotMatch[1].trim();
+
+  return result;
+}
+
+// --------------------
+// RAW GS1 PARSER
+// --------------------
+function parseRawGS1(raw) {
+  let data = raw.replace(/\s+/g, "");
 
   let result = { gtin: null, exp: null, lot: null };
 
-  while (data.length > 0) {
+  // STRICT GTIN AT START
+  if (data.startsWith("01") && data.length >= 16) {
+    result.gtin = data.substring(2, 16);
+    data = data.substring(16);
+  } else {
+    return result;
+  }
 
-    if (data.startsWith("01") && data.length >= 16) {
-      result.gtin = data.substring(2, 16);
-      data = data.substring(16);
-      continue;
-    }
+  while (data.length > 0) {
 
     if (data.startsWith("17") && data.length >= 8) {
       result.exp = data.substring(2, 8);
@@ -158,7 +190,7 @@ function parseBarcode(raw) {
         result.lot = remainder.substring(0, gsIndex);
         data = remainder.substring(gsIndex + 1);
       } else {
-        let nextIndex = remainder.search(/(01|11|17)/);
+        let nextIndex = remainder.search(/(11|17)/);
 
         if (nextIndex === -1) {
           result.lot = remainder;
@@ -173,11 +205,6 @@ function parseBarcode(raw) {
     }
 
     break;
-  }
-
-  // fallback GTIN
-  if (!result.gtin && /^\d{14}$/.test(data)) {
-    result.gtin = data;
   }
 
   return result;

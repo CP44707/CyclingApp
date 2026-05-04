@@ -303,32 +303,72 @@ function editRow(index) {
 // HANDLE SCAN
 // --------------------
 async function handleScan(value) {
-  const parsed = parseBarcode(value);
+  let data = value.replace(/\s+/g, "");
 
-  // =========================
-  // LOCKED FIELD STATE
-  // =========================
-  let usedGTIN = false;
-  let usedEXP = false;
-  let usedLOT = false;
+  let gtin = currentEntry.gtin;
+  let exp = currentEntry.exp;
+  let lot = currentEntry.lot;
 
   // -------------------------
-  // APPLY FIELDS ONLY ONCE
+  // STEP 1: GTIN (ONLY ONCE)
   // -------------------------
-  if (parsed.gtin && !usedGTIN) {
-    currentEntry.gtin = parsed.gtin;
-    usedGTIN = true;
+  if (!gtin && data.startsWith("01") && data.length >= 16) {
+    gtin = data.substring(2, 16);
+    data = data.substring(16);
   }
 
-  if (parsed.exp && !usedEXP) {
-    currentEntry.exp = parsed.exp;
-    usedEXP = true;
+  // -------------------------
+  // STEP 2: LOOP CONSUMING REMAINING FIELDS
+  // -------------------------
+  while (data.length > 0) {
+
+    // EXP (17)
+    if (!exp && data.startsWith("17") && data.length >= 8) {
+      exp = data.substring(2, 8);
+      data = data.substring(8);
+      continue;
+    }
+
+    // SKIP 11
+    if (data.startsWith("11") && data.length >= 8) {
+      data = data.substring(8);
+      continue;
+    }
+
+    // LOT (10)
+    if (!lot && data.startsWith("10")) {
+      let remainder = data.substring(2);
+
+      let gsIndex = remainder.indexOf("\u001D");
+
+      if (gsIndex !== -1) {
+        lot = remainder.substring(0, gsIndex);
+        data = remainder.substring(gsIndex + 1);
+      } else {
+        let nextIndex = remainder.search(/(11|17|01)/);
+
+        if (nextIndex === -1) {
+          lot = remainder;
+          data = "";
+        } else {
+          lot = remainder.substring(0, nextIndex);
+          data = remainder.substring(nextIndex);
+        }
+      }
+
+      continue;
+    }
+
+    // nothing recognized → break
+    break;
   }
 
-  if (parsed.lot && !usedLOT) {
-    currentEntry.lot = parsed.lot;
-    usedLOT = true;
-  }
+  // -------------------------
+  // STORE RESULT
+  // -------------------------
+  currentEntry.gtin = currentEntry.gtin || gtin;
+  currentEntry.exp = currentEntry.exp || exp;
+  currentEntry.lot = currentEntry.lot || lot;
 
   // -------------------------
   // FINAL CHECK
@@ -353,7 +393,7 @@ async function handleScan(value) {
   }
 
   // -------------------------
-  // PARTIAL STATE
+  // PARTIAL STATES
   // -------------------------
   if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
     const sku = findSKU(currentEntry.gtin);
@@ -361,6 +401,7 @@ async function handleScan(value) {
     if (!sku) {
       window.location.href = "assign.html?gtin=" + currentEntry.gtin;
     }
+
     return;
   }
 

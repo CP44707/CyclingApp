@@ -151,7 +151,7 @@ search.addEventListener("input", () => {
 });
 
 // --------------------
-// ASSIGN (CORS SAFE VERSION)
+// ASSIGN (UPDATED: TRIGGERS REFRESH FLAG)
 // --------------------
 document.getElementById("assignBtn").onclick = async () => {
   if (!selectedSKU) {
@@ -184,6 +184,10 @@ document.getElementById("assignBtn").onclick = async () => {
     }
 
     if (result.success) {
+
+      // ✅ ONLY CHANGE ADDED HERE
+      localStorage.setItem("skuMapUpdatedAt", Date.now());
+
       status.textContent = "Assigned!";
       status.className = "ok";
       beep(880);

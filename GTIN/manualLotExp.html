@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+<title>Lot / Exp / Qty Entry</title>
+
+<style>
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  input, select, button {
+    width: 90%;
+    font-size: 14px;
+    padding: 6px;
+    margin-top: 4px;
+  }
+
+  button {
+    background: #333;
+    color: white;
+    border: none;
+  }
+
+  .row {
+    display: flex;
+    width: 90%;
+    gap: 4px;
+  }
+
+  select {
+    flex: 1;
+  }
+
+  #status {
+    font-size: 12px;
+    margin-top: 6px;
+    color: orange;
+    text-align: center;
+  }
+</style>
+</head>
+
+<body>
+
+<input id="scanInput" placeholder="Scan lot / exp barcode..." />
+<input id="lotInput" placeholder="Or enter LOT manually" />
+<input id="qtyInput" type="number" min="1" value="1" placeholder="Quantity" />
+
+<div class="row">
+  <select id="year"></select>
+  <select id="month"></select>
+  <select id="day"></select>
+</div>
+
+<button id="submit">Continue</button>
+
+<div id="status"></div>
+
+<script src="config.js"></script>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const sku = params.get("sku");
+
+const scanInput = document.getElementById("scanInput");
+const lotInput = document.getElementById("lotInput");
+const qtyInput = document.getElementById("qtyInput");
+const status = document.getElementById("status");
+
+const yearSel = document.getElementById("year");
+const monthSel = document.getElementById("month");
+const daySel = document.getElementById("day");
+
+// --------------------
+// BEEP
+// --------------------
+function beep(freq) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  o.frequency.value = freq;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 100);
+}
+
+// --------------------
+// PARSE LOT / EXP
+// --------------------
+function parseLotExp(raw) {
+  raw = (raw || "").replace(/\s+/g, "");
+
+  let lot = null;
+  let exp = null;
+
+  const expMatch = raw.match(/17(\d{6})/);
+  if (expMatch) exp = expMatch[1];
+
+  const lotMatch = raw.match(/10([^\u001D]+)/);
+  if (lotMatch) lot = lotMatch[1];
+
+  return { lot, exp };
+}
+
+// --------------------
+// DATE HELPERS
+// --------------------
+function daysInMonth(y, m) {
+  return new Date(y, m, 0).getDate();
+}
+
+function buildYears() {
+  const now = new Date().getFullYear();
+  for (let y = now - 5; y <= now + 10; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    yearSel.appendChild(opt);
+  }
+}
+
+function buildMonths() {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  months.forEach((m, i) => {
+    const opt = document.createElement("option");
+    opt.value = i + 1;
+    opt.textContent = m;
+    monthSel.appendChild(opt);
+  });
+}
+
+function buildDays() {
+  daySel.innerHTML = "";
+
+  const y = parseInt(yearSel.value);
+  const m = parseInt(monthSel.value);
+
+  const max = daysInMonth(y, m);
+
+  for (let d = 1; d <= max; d++) {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    daySel.appendChild(opt);
+  }
+}
+
+// init
+buildYears();
+buildMonths();
+
+yearSel.value = new Date().getFullYear();
+monthSel.value = new Date().getMonth() + 1;
+buildDays();
+
+yearSel.onchange = buildDays;
+monthSel.onchange = buildDays;
+
+// --------------------
+// SCAN INPUT
+// --------------------
+scanInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const parsed = parseLotExp(scanInput.value);
+
+    if (parsed.lot) {
+      lotInput.value = parsed.lot;
+      beep(880);
+      status.textContent = "Lot captured";
+    }
+
+    if (parsed.exp) {
+      setExpFromYYMMDD(parsed.exp);
+      beep(880);
+      status.textContent = "Expiry captured";
+    }
+
+    scanInput.value = "";
+  }
+});
+
+// --------------------
+// SET EXP
+// --------------------
+function setExpFromYYMMDD(exp) {
+  if (!exp || exp.length !== 6) return;
+
+  const yy = "20" + exp.slice(0,2);
+  const mm = parseInt(exp.slice(2,4), 10);
+  const dd = parseInt(exp.slice(4,6), 10);
+
+  yearSel.value = yy;
+  monthSel.value = mm;
+
+  buildDays();
+  daySel.value = dd;
+}
+
+// --------------------
+// SUBMIT
+// --------------------
+document.getElementById("submit").onclick = () => {
+  const lot = lotInput.value.trim();
+  const qty = parseInt(qtyInput.value, 10);
+
+  const exp =
+    yearSel.value.toString().slice(2) +
+    String(monthSel.value).padStart(2,"0") +
+    String(daySel.value).padStart(2,"0");
+
+  if (!lot) {
+    status.textContent = "Lot required";
+    beep(150);
+    return;
+  }
+
+  if (!qty || qty <= 0) {
+    status.textContent = "Invalid quantity";
+    beep(150);
+    return;
+  }
+
+  localStorage.setItem("manualEntry", JSON.stringify({
+    sku,
+    lot,
+    exp,
+    qty
+  }));
+
+  status.textContent = "Saved";
+  beep(880);
+
+  setTimeout(() => {
+    window.location.href = "scanner.html";
+  }, 500);
+};
+</script>
+
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+<title>Manual SKU Select</title>
+
+<style>
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #search {
+    width: 90%;
+    font-size: 14px;
+    padding: 8px;
+  }
+
+  #results {
+    width: 90%;
+    max-height: 110px;
+    overflow-y: auto;
+    background: #1b1b1b;
+    border: 1px solid #333;
+    margin-top: 5px;
+  }
+
+  .item {
+    padding: 6px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+  }
+
+  .item:hover {
+    background: #333;
+  }
+
+  #status {
+    font-size: 12px;
+    margin-top: 6px;
+    text-align: center;
+    color: orange;
+  }
+</style>
+</head>
+
+<body>
+
+<input id="search" placeholder="Search SKU..." />
+<div id="results"></div>
+<div id="status"></div>
+
+<script src="config.js"></script>
+
+<script>
+const search = document.getElementById("search");
+const results = document.getElementById("results");
+const status = document.getElementById("status");
+
+let allSKUs = [];
+let selectedSKU = null;
+
+// --------------------
+// LOAD CSV (same logic as assign page)
+// --------------------
+async function loadSKUs() {
+  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
+  const text = await res.text();
+
+  const lines = text.trim().split("\n");
+
+  allSKUs = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const sku = (cols[0] || "").trim();
+    if (sku) allSKUs.push(sku);
+  }
+}
+
+loadSKUs();
+
+// --------------------
+// SEARCH
+// --------------------
+search.addEventListener("input", () => {
+  const q = search.value.toLowerCase();
+  results.innerHTML = "";
+  selectedSKU = null;
+
+  if (!q) return;
+
+  const matches = allSKUs
+    .filter(s => s.toLowerCase().includes(q))
+    .slice(0, 10);
+
+  matches.forEach(sku => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.textContent = sku;
+
+    div.onclick = () => {
+      selectedSKU = sku;
+
+      status.textContent = "Selected: " + sku;
+
+      // 👉 go to next step
+      setTimeout(() => {
+        window.location.href =
+          "manualLotExp.html?sku=" + encodeURIComponent(sku);
+      }, 300);
+    };
+
+    results.appendChild(div);
+  });
+});
+</script>
+
+</body>
+</html>

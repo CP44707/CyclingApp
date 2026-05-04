@@ -72,7 +72,7 @@
 
 <script>
 const params = new URLSearchParams(window.location.search);
-const sku = params.get("sku");
+const sku = params.get("sku") || localStorage.getItem("manualSKU");
 
 const scanInput = document.getElementById("scanInput");
 const lotInput = document.getElementById("lotInput");
@@ -209,7 +209,7 @@ function setExpFromYYMMDD(exp) {
 }
 
 // --------------------
-// SUBMIT
+// SUBMIT (UPDATED → SHARED TABLE)
 // --------------------
 document.getElementById("submit").onclick = () => {
   const lot = lotInput.value.trim();
@@ -232,12 +232,29 @@ document.getElementById("submit").onclick = () => {
     return;
   }
 
-  localStorage.setItem("manualEntry", JSON.stringify({
-    sku,
-    lot,
-    exp,
-    qty
-  }));
+  // =========================
+  // ✅ NEW PERSISTENT SYSTEM
+  // =========================
+  let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+  const key = `${sku}_${lot}_${exp}`;
+  const existing = table.find(i => i.key === key);
+
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    table.push({
+      key,
+      sku,
+      lot,
+      exp,
+      qty
+    });
+  }
+
+  localStorage.setItem("cycleTable", JSON.stringify(table));
+
+  localStorage.removeItem("manualSKU");
 
   status.textContent = "Saved";
   beep(880);

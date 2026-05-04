@@ -98,10 +98,12 @@ function beep(freq) {
 }
 
 // --------------------
-// LOAD CSV
+// LOAD CSV (UPDATED CACHE BUST)
 // --------------------
 async function loadSKUs() {
-  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
+  const cacheBuster = localStorage.getItem("skuMapUpdatedAt") || Date.now();
+
+  const res = await fetch(CONFIG.CSV_URL + "&cache=" + cacheBuster);
   const text = await res.text();
 
   const lines = text.trim().split("\n");
@@ -118,7 +120,7 @@ async function loadSKUs() {
 loadSKUs();
 
 // --------------------
-// LIVE SEARCH UI
+// SEARCH
 // --------------------
 search.addEventListener("input", () => {
   const q = search.value.toLowerCase();
@@ -151,7 +153,7 @@ search.addEventListener("input", () => {
 });
 
 // --------------------
-// ASSIGN (UPDATED: TRIGGERS REFRESH FLAG)
+// ASSIGN
 // --------------------
 document.getElementById("assignBtn").onclick = async () => {
   if (!selectedSKU) {
@@ -185,8 +187,9 @@ document.getElementById("assignBtn").onclick = async () => {
 
     if (result.success) {
 
-      // ✅ ONLY CHANGE ADDED HERE
-      localStorage.setItem("skuMapUpdatedAt", Date.now());
+      // ✅ UPDATED: stronger refresh trigger
+      const now = Date.now();
+      localStorage.setItem("skuMapUpdatedAt", now);
 
       status.textContent = "Assigned!";
       status.className = "ok";

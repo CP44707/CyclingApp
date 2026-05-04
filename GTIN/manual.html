@@ -71,7 +71,7 @@ let allSKUs = [];
 let selectedSKU = null;
 
 // --------------------
-// LOAD CSV (same logic as assign page)
+// LOAD CSV
 // --------------------
 async function loadSKUs() {
   const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
@@ -114,7 +114,9 @@ search.addEventListener("input", () => {
 
       status.textContent = "Selected: " + sku;
 
-      // 👉 go to next step
+      // ✅ ONLY CHANGE ADDED (match scanner persistence pattern)
+      localStorage.setItem("manualSKU", sku);
+
       setTimeout(() => {
         window.location.href =
           "manualLotExp.html?sku=" + encodeURIComponent(sku);

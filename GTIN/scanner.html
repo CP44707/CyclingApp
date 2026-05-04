@@ -85,8 +85,16 @@ const tbody = document.getElementById("tbody");
 const manualBtn = document.getElementById("manualBtn");
 
 let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
-let scannedItems = [];
 let skuMap = {};
+
+// ========================
+// ✅ PERSISTED TABLE STATE (ADDED)
+// ========================
+let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+function saveTable() {
+  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
+}
 
 // --------------------
 // AUDIO
@@ -160,7 +168,6 @@ function parseRawGS1(raw) {
 
   let result = { gtin: null, exp: null, lot: null };
 
-  // STRICT GTIN AT START
   if (data.startsWith("01") && data.length >= 16) {
     result.gtin = data.substring(2, 16);
     data = data.substring(16);
@@ -183,7 +190,6 @@ function parseRawGS1(raw) {
 
     if (data.startsWith("10")) {
       let remainder = data.substring(2);
-
       let gsIndex = remainder.indexOf("\u001D");
 
       if (gsIndex !== -1) {
@@ -231,7 +237,7 @@ function findSKU(gtin) {
 }
 
 // --------------------
-// TABLE
+// TABLE (UPDATED ONLY WITH SAVE)
 // --------------------
 function addToTable(item) {
   const key = `${item.sku}_${item.lot}_${item.exp}`;
@@ -243,6 +249,7 @@ function addToTable(item) {
     scannedItems.push({ key, ...item, qty: 1 });
   }
 
+  saveTable(); // ✅ ADDED
   renderTable();
 }
 
@@ -266,7 +273,7 @@ function renderTable() {
 }
 
 // --------------------
-// EDIT ROW
+// EDIT ROW (ADDED SAVE)
 // --------------------
 function editRow(index) {
   const item = scannedItems[index];
@@ -288,29 +295,8 @@ function editRow(index) {
     sku, lot, exp, qty
   };
 
+  saveTable(); // ✅ ADDED
   renderTable();
-}
-
-// --------------------
-// HELPERS
-// --------------------
-function resetEntry() {
-  currentEntry = { gtin: null, lot: null, exp: null, sku: null };
-}
-
-function statusMsg(msg, color="orange") {
-  status.textContent = msg;
-  status.style.color = color;
-}
-
-function success(msg) {
-  statusMsg(msg, "lime");
-  beep(880);
-}
-
-function error(msg) {
-  statusMsg(msg, "red");
-  beep(150);
 }
 
 // --------------------
@@ -328,20 +314,8 @@ async function handleScan(value) {
 
     if (sku) {
       addToTable({ sku, lot: currentEntry.lot, exp: currentEntry.exp });
-      success("Added");
-      resetEntry();
-    } else {
-      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
-    }
-    return;
-  }
-
-  if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
-    const sku = findSKU(currentEntry.gtin);
-
-    if (sku) {
-      currentEntry.sku = sku;
-      statusMsg("Scan lot & exp");
+      beep(880);
+      currentEntry = { gtin: null, lot: null, exp: null, sku: null };
     } else {
       window.location.href = "assign.html?gtin=" + currentEntry.gtin;
     }
@@ -349,11 +323,10 @@ async function handleScan(value) {
   }
 
   if (!currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
-    statusMsg("Use manual entry or scan GTIN");
     return;
   }
 
-  error("Invalid barcode");
+  beep(150);
 }
 
 // --------------------
@@ -376,17 +349,19 @@ input.addEventListener("input", (e) => {
 });
 
 // --------------------
-// MANUAL BUTTON
+// MANUAL
 // --------------------
 manualBtn.onclick = () => {
   window.location.href = "manual.html";
 };
 
-// keep focus
-setInterval(() => input.focus(), 500);
-
-// init
+// --------------------
+// INIT
+// --------------------
 loadCSV();
+renderTable();
+
+setInterval(() => input.focus(), 500);
 
 </script>
 

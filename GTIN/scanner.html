@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>Scanner</title>
+<title>Cycle Counter</title>
 
 <style>
   body {
@@ -16,21 +16,37 @@
     font-family: sans-serif;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
   }
 
   input {
     width: 90%;
-    font-size: 18px;
-    padding: 10px;
+    font-size: 16px;
+    padding: 8px;
+    margin-top: 4px;
     text-align: center;
   }
 
   #status {
-    margin-top: 10px;
-    font-size: 14px;
+    margin: 6px;
+    font-size: 13px;
     text-align: center;
+  }
+
+  table {
+    width: 95%;
+    font-size: 12px;
+    border-collapse: collapse;
+  }
+
+  td, th {
+    border-bottom: 1px solid #444;
+    padding: 4px;
+    text-align: center;
+  }
+
+  tr:hover {
+    background: #222;
   }
 </style>
 </head>
@@ -38,138 +54,268 @@
 <body>
 
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
+<input id="manualInput" placeholder="Or enter SKU manually" />
 <div id="status"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Lot</th>
+      <th>Exp</th>
+      <th>Qty</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
 
 <script src="config.js"></script>
 
 <script>
 const input = document.getElementById("scanInput");
+const manualInput = document.getElementById("manualInput");
 const status = document.getElementById("status");
+const tbody = document.getElementById("tbody");
+
+let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
+let scannedItems = [];
+let skuMap = {};
 
 // --------------------
-// BEEP
+// BEEP (reuse context)
 // --------------------
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function beep(freq) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
+  const o = audioCtx.createOscillator();
   o.frequency.value = freq;
-  o.connect(ctx.destination);
+  o.connect(audioCtx.destination);
   o.start();
-  setTimeout(() => o.stop(), 120);
+  setTimeout(() => o.stop(), 100);
 }
 
 // --------------------
-// CLEAN STRING
+// CLEAN
 // --------------------
 function clean(v) {
-  return (v || "")
-    .toString()
-    .replace(/\r/g, "")
-    .trim();
+  return (v || "").toString().replace(/\r/g, "").trim();
 }
 
 // --------------------
-// EXTRACT GTIN (STRICT 14 DIGITS AFTER 01)
+// PARSE BARCODE
 // --------------------
-function extractGTIN(raw) {
+function parseBarcode(raw) {
   raw = clean(raw).replace(/\s+/g, "");
 
-  const match = raw.match(/01(\d{14})/);
-  return match ? match[1] : null;
+  return {
+    gtin: (raw.match(/01(\d{14})/) || [])[1] || null,
+    exp: (raw.match(/17(\d{6})/) || [])[1] || null,
+    lot: (raw.match(/10([^\u001D]+)/) || [])[1] || null
+  };
 }
 
 // --------------------
-// SEARCH CSV DIRECTLY
+// LOAD CSV ONCE
 // --------------------
-async function findSKU(gtin) {
-  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
+async function loadCSV() {
+  const res = await fetch(CONFIG.CSV_URL);
   const text = await res.text();
 
-  const lines = text.trim().split("\n");
-
-  // loop rows (skip header)
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",");
-
+  text.split("\n").slice(1).forEach(line => {
+    const cols = line.split(",");
     const sku = clean(cols[0]);
-    const csvGTIN = clean(cols[1]).replace(/\D/g, ""); // digits only
+    const gtin = clean(cols[1]).replace(/\D/g, "").slice(-14);
 
-    if (!sku || !csvGTIN) continue;
-
-    // normalize both to 14 digits
-    const normalizedCSV = csvGTIN.slice(-14);
-    const normalizedScan = gtin;
-
-    if (normalizedCSV === normalizedScan) {
-      return sku;
-    }
-  }
-
-  return null;
+    if (gtin) skuMap[gtin] = sku;
+  });
 }
 
 // --------------------
-// SCAN HANDLER
+// FIND SKU
+// --------------------
+function findSKU(gtin) {
+  return skuMap[gtin] || null;
+}
+
+// --------------------
+// TABLE LOGIC
+// --------------------
+function addToTable(item) {
+  const key = `${item.sku}_${item.lot}_${item.exp}`;
+  const existing = scannedItems.find(i => i.key === key);
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    scannedItems.push({ key, ...item, qty: 1 });
+  }
+
+  renderTable();
+}
+
+function renderTable() {
+  tbody.innerHTML = "";
+
+  scannedItems.forEach((item, index) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${item.sku}</td>
+      <td>${item.lot}</td>
+      <td>${item.exp}</td>
+      <td>${item.qty}</td>
+    `;
+
+    // EDITABLE ROW
+    row.onclick = () => editRow(index);
+
+    tbody.appendChild(row);
+  });
+}
+
+// --------------------
+// EDIT ROW
+// --------------------
+function editRow(index) {
+  const item = scannedItems[index];
+
+  const sku = prompt("Edit SKU", item.sku);
+  if (sku === null) return;
+
+  const lot = prompt("Edit Lot", item.lot);
+  if (lot === null) return;
+
+  const exp = prompt("Edit Exp", item.exp);
+  if (exp === null) return;
+
+  const qty = parseInt(prompt("Edit Qty", item.qty), 10);
+  if (isNaN(qty)) return;
+
+  scannedItems[index] = {
+    key: `${sku}_${lot}_${exp}`,
+    sku, lot, exp, qty
+  };
+
+  renderTable();
+}
+
+// --------------------
+// HELPERS
+// --------------------
+function resetEntry() {
+  currentEntry = { gtin: null, lot: null, exp: null, sku: null };
+}
+
+function statusMsg(msg, color="orange") {
+  status.textContent = msg;
+  status.style.color = color;
+}
+
+function success(msg) {
+  statusMsg(msg, "lime");
+  beep(880);
+}
+
+function error(msg) {
+  statusMsg(msg, "red");
+  beep(150);
+}
+
+// --------------------
+// HANDLE SCAN
 // --------------------
 async function handleScan(value) {
-  const gtin = extractGTIN(value);
+  const parsed = parseBarcode(value);
 
-  if (!gtin) {
-    status.textContent = "Invalid barcode";
-    status.style.color = "red";
-    beep(150);
-    input.value = "";
+  if (parsed.gtin) currentEntry.gtin = parsed.gtin;
+  if (parsed.exp) currentEntry.exp = parsed.exp;
+  if (parsed.lot) currentEntry.lot = parsed.lot;
+
+  // ALL 3
+  if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
+    const sku = findSKU(currentEntry.gtin);
+
+    if (sku) {
+      addToTable({ sku, lot: currentEntry.lot, exp: currentEntry.exp });
+      success("Added");
+      resetEntry();
+    } else {
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+    }
     return;
   }
 
-  status.textContent = "Searching...";
-  status.style.color = "white";
+  // GTIN ONLY
+  if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
+    const sku = findSKU(currentEntry.gtin);
 
-  const sku = await findSKU(gtin);
-
-  if (sku) {
-    status.textContent = "SKU: " + sku;
-    status.style.color = "lime";
-    beep(880);
-
-    input.value = "";
-  } else {
-    status.textContent = "Not found → assign";
-    status.style.color = "orange";
-
-    window.location.href =
-      "assign.html?gtin=" + encodeURIComponent(gtin);
+    if (sku) {
+      currentEntry.sku = sku;
+      statusMsg("Scan lot & exp");
+    } else {
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+    }
+    return;
   }
+
+  // LOT + EXP ONLY
+  if (!currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
+    statusMsg("Enter SKU or scan GTIN");
+    return;
+  }
+
+  error("Invalid barcode");
 }
 
 // --------------------
-// AUTO SCAN (NO ENTER REQUIRED)
+// AUTO SCAN
 // --------------------
 let buffer = "";
 let timer;
 
 input.addEventListener("input", (e) => {
   buffer = e.target.value;
-
   clearTimeout(timer);
 
   timer = setTimeout(() => {
     if (buffer.length > 0) {
       handleScan(buffer);
       buffer = "";
+      input.value = "";
     }
   }, 80);
 });
 
-input.addEventListener("keydown", (e) => {
+// --------------------
+// MANUAL SKU ENTRY
+// --------------------
+manualInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
-    handleScan(input.value);
-    input.value = "";
+    const sku = clean(manualInput.value);
+
+    if (!sku) return;
+
+    if (!currentEntry.lot || !currentEntry.exp) {
+      statusMsg("Need lot & exp first");
+      return;
+    }
+
+    addToTable({
+      sku,
+      lot: currentEntry.lot,
+      exp: currentEntry.exp
+    });
+
+    success("Manual add");
+    manualInput.value = "";
+    resetEntry();
   }
 });
 
 // keep focus
 setInterval(() => input.focus(), 500);
+
+// init
+loadCSV();
 
 </script>
 

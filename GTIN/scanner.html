@@ -104,13 +104,69 @@ function clean(v) {
 // PARSE BARCODE
 // --------------------
 function parseBarcode(raw) {
-  raw = clean(raw).replace(/\s+/g, "");
+  let data = clean(raw).replace(/\s+/g, "");
 
-  return {
-    gtin: (raw.match(/01(\d{14})/) || [])[1] || null,
-    exp: (raw.match(/17(\d{6})/) || [])[1] || null,
-    lot: (raw.match(/10([^\u001D]+)/) || [])[1] || null
+  let result = {
+    gtin: null,
+    exp: null,
+    lot: null
   };
+
+  while (data.length > 0) {
+
+    // --------------------
+    // GTIN (01) – fixed 14
+    // --------------------
+    if (data.startsWith("01") && data.length >= 16) {
+      result.gtin = data.substring(2, 16);
+      data = data.substring(16);
+      continue;
+    }
+
+    // --------------------
+    // EXP (17) – fixed 6
+    // --------------------
+    if (data.startsWith("17") && data.length >= 8) {
+      result.exp = data.substring(2, 8);
+      data = data.substring(8);
+      continue;
+    }
+
+    // --------------------
+    // PROD DATE (11) – skip
+    // --------------------
+    if (data.startsWith("11") && data.length >= 8) {
+      data = data.substring(8);
+      continue;
+    }
+
+    // --------------------
+    // LOT (10) – variable
+    // --------------------
+    if (data.startsWith("10")) {
+      let remainder = data.substring(2);
+
+      // look for next AI (11 or 17 or 01)
+      let nextIndex = remainder.search(/(01|11|17)/);
+
+      if (nextIndex === -1) {
+        result.lot = remainder;
+        data = "";
+      } else {
+        result.lot = remainder.substring(0, nextIndex);
+        data = remainder.substring(nextIndex);
+      }
+
+      continue;
+    }
+
+    // --------------------
+    // UNKNOWN → STOP
+    // --------------------
+    break;
+  }
+
+  return result;
 }
 
 // --------------------

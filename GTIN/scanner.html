@@ -19,12 +19,18 @@
     align-items: center;
   }
 
-  input {
+  input, button {
     width: 90%;
     font-size: 16px;
     padding: 8px;
     margin-top: 4px;
     text-align: center;
+  }
+
+  button {
+    background: #333;
+    color: white;
+    border: none;
   }
 
   #status {
@@ -54,7 +60,8 @@
 <body>
 
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
-<input id="manualInput" placeholder="Or enter SKU manually" />
+<button id="manualBtn">Enter SKU Manually</button>
+
 <div id="status"></div>
 
 <table>
@@ -73,16 +80,16 @@
 
 <script>
 const input = document.getElementById("scanInput");
-const manualInput = document.getElementById("manualInput");
 const status = document.getElementById("status");
 const tbody = document.getElementById("tbody");
+const manualBtn = document.getElementById("manualBtn");
 
 let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
 let scannedItems = [];
 let skuMap = {};
 
 // --------------------
-// BEEP (reuse context)
+// AUDIO
 // --------------------
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function beep(freq) {
@@ -101,76 +108,83 @@ function clean(v) {
 }
 
 // --------------------
-// PARSE BARCODE
+// FORMAT DATE → 26-Jan-04
+// --------------------
+function formatExp(exp) {
+  if (!exp || exp.length !== 6) return exp;
+
+  const year = "20" + exp.slice(0,2);
+  const month = parseInt(exp.slice(2,4), 10) - 1;
+  const day = exp.slice(4,6);
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return `${day}-${months[month]}-${year.slice(2)}`;
+}
+
+// --------------------
+// PARSER (SMART GS1)
 // --------------------
 function parseBarcode(raw) {
   let data = clean(raw).replace(/\s+/g, "");
 
-  let result = {
-    gtin: null,
-    exp: null,
-    lot: null
-  };
+  let result = { gtin: null, exp: null, lot: null };
 
   while (data.length > 0) {
 
-    // --------------------
-    // GTIN (01) – fixed 14
-    // --------------------
     if (data.startsWith("01") && data.length >= 16) {
       result.gtin = data.substring(2, 16);
       data = data.substring(16);
       continue;
     }
 
-    // --------------------
-    // EXP (17) – fixed 6
-    // --------------------
     if (data.startsWith("17") && data.length >= 8) {
       result.exp = data.substring(2, 8);
       data = data.substring(8);
       continue;
     }
 
-    // --------------------
-    // PROD DATE (11) – skip
-    // --------------------
     if (data.startsWith("11") && data.length >= 8) {
       data = data.substring(8);
       continue;
     }
 
-    // --------------------
-    // LOT (10) – variable
-    // --------------------
     if (data.startsWith("10")) {
       let remainder = data.substring(2);
 
-      // look for next AI (11 or 17 or 01)
-      let nextIndex = remainder.search(/(01|11|17)/);
+      let gsIndex = remainder.indexOf("\u001D");
 
-      if (nextIndex === -1) {
-        result.lot = remainder;
-        data = "";
+      if (gsIndex !== -1) {
+        result.lot = remainder.substring(0, gsIndex);
+        data = remainder.substring(gsIndex + 1);
       } else {
-        result.lot = remainder.substring(0, nextIndex);
-        data = remainder.substring(nextIndex);
+        let nextIndex = remainder.search(/(01|11|17)/);
+
+        if (nextIndex === -1) {
+          result.lot = remainder;
+          data = "";
+        } else {
+          result.lot = remainder.substring(0, nextIndex);
+          data = remainder.substring(nextIndex);
+        }
       }
 
       continue;
     }
 
-    // --------------------
-    // UNKNOWN → STOP
-    // --------------------
     break;
+  }
+
+  // fallback GTIN
+  if (!result.gtin && /^\d{14}$/.test(data)) {
+    result.gtin = data;
   }
 
   return result;
 }
 
 // --------------------
-// LOAD CSV ONCE
+// LOAD CSV
 // --------------------
 async function loadCSV() {
   const res = await fetch(CONFIG.CSV_URL);
@@ -185,15 +199,12 @@ async function loadCSV() {
   });
 }
 
-// --------------------
-// FIND SKU
-// --------------------
 function findSKU(gtin) {
   return skuMap[gtin] || null;
 }
 
 // --------------------
-// TABLE LOGIC
+// TABLE
 // --------------------
 function addToTable(item) {
   const key = `${item.sku}_${item.lot}_${item.exp}`;
@@ -217,11 +228,10 @@ function renderTable() {
     row.innerHTML = `
       <td>${item.sku}</td>
       <td>${item.lot}</td>
-      <td>${item.exp}</td>
+      <td>${formatExp(item.exp)}</td>
       <td>${item.qty}</td>
     `;
 
-    // EDITABLE ROW
     row.onclick = () => editRow(index);
 
     tbody.appendChild(row);
@@ -240,7 +250,7 @@ function editRow(index) {
   const lot = prompt("Edit Lot", item.lot);
   if (lot === null) return;
 
-  const exp = prompt("Edit Exp", item.exp);
+  const exp = prompt("Edit Exp (YYMMDD)", item.exp);
   if (exp === null) return;
 
   const qty = parseInt(prompt("Edit Qty", item.qty), 10);
@@ -286,7 +296,6 @@ async function handleScan(value) {
   if (parsed.exp) currentEntry.exp = parsed.exp;
   if (parsed.lot) currentEntry.lot = parsed.lot;
 
-  // ALL 3
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
     const sku = findSKU(currentEntry.gtin);
 
@@ -300,7 +309,6 @@ async function handleScan(value) {
     return;
   }
 
-  // GTIN ONLY
   if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
     const sku = findSKU(currentEntry.gtin);
 
@@ -313,9 +321,8 @@ async function handleScan(value) {
     return;
   }
 
-  // LOT + EXP ONLY
   if (!currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
-    statusMsg("Enter SKU or scan GTIN");
+    statusMsg("Use manual entry or scan GTIN");
     return;
   }
 
@@ -342,30 +349,11 @@ input.addEventListener("input", (e) => {
 });
 
 // --------------------
-// MANUAL SKU ENTRY
+// MANUAL BUTTON
 // --------------------
-manualInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    const sku = clean(manualInput.value);
-
-    if (!sku) return;
-
-    if (!currentEntry.lot || !currentEntry.exp) {
-      statusMsg("Need lot & exp first");
-      return;
-    }
-
-    addToTable({
-      sku,
-      lot: currentEntry.lot,
-      exp: currentEntry.exp
-    });
-
-    success("Manual add");
-    manualInput.value = "";
-    resetEntry();
-  }
-});
+manualBtn.onclick = () => {
+  window.location.href = "manual.html";
+};
 
 // keep focus
 setInterval(() => input.focus(), 500);

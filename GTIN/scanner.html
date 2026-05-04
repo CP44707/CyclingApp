@@ -345,15 +345,11 @@ async function handleScan(value) {
         lot = remainder.substring(0, gsIndex);
         data = remainder.substring(gsIndex + 1);
       } else {
-        let nextIndex = remainder.search(/(11|17|01)/);
-
-        if (nextIndex === -1) {
-          lot = remainder;
-          data = "";
-        } else {
-          lot = remainder.substring(0, nextIndex);
-          data = remainder.substring(nextIndex);
-        }
+        // ❌ IMPORTANT FIX:
+        // DO NOT search for 17 or 11 anymore
+        // LOT is everything until end OR separator
+        lot = remainder;
+        data = "";
       }
 
       continue;

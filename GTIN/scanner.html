@@ -305,18 +305,60 @@ function editRow(index) {
 async function handleScan(value) {
   const parsed = parseBarcode(value);
 
-  if (parsed.gtin) currentEntry.gtin = parsed.gtin;
-  if (parsed.exp) currentEntry.exp = parsed.exp;
-  if (parsed.lot) currentEntry.lot = parsed.lot;
+  // =========================
+  // LOCKED FIELD STATE
+  // =========================
+  let usedGTIN = false;
+  let usedEXP = false;
+  let usedLOT = false;
 
+  // -------------------------
+  // APPLY FIELDS ONLY ONCE
+  // -------------------------
+  if (parsed.gtin && !usedGTIN) {
+    currentEntry.gtin = parsed.gtin;
+    usedGTIN = true;
+  }
+
+  if (parsed.exp && !usedEXP) {
+    currentEntry.exp = parsed.exp;
+    usedEXP = true;
+  }
+
+  if (parsed.lot && !usedLOT) {
+    currentEntry.lot = parsed.lot;
+    usedLOT = true;
+  }
+
+  // -------------------------
+  // FINAL CHECK
+  // -------------------------
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
     const sku = findSKU(currentEntry.gtin);
 
     if (sku) {
-      addToTable({ sku, lot: currentEntry.lot, exp: currentEntry.exp });
+      addToTable({
+        sku,
+        lot: currentEntry.lot,
+        exp: currentEntry.exp
+      });
+
       beep(880);
       currentEntry = { gtin: null, lot: null, exp: null, sku: null };
     } else {
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+    }
+
+    return;
+  }
+
+  // -------------------------
+  // PARTIAL STATE
+  // -------------------------
+  if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
+    const sku = findSKU(currentEntry.gtin);
+
+    if (!sku) {
       window.location.href = "assign.html?gtin=" + currentEntry.gtin;
     }
     return;

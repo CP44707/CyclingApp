@@ -238,8 +238,19 @@ async function loadCSV() {
   });
 }
 
+function extractGTIN(raw) {
+  raw = clean(raw).replace(/\s+/g, "");
+  const match = raw.match(/01(\d{14})/);
+  return match ? match[1] : null;
+}
+
+function normalizeGTIN(gtin) {
+  return (gtin || "").replace(/\D/g, "").slice(-14);
+}
+
 function findSKU(gtin) {
-  return skuMap[gtin] || null;
+  const normalized = normalizeGTIN(gtin);
+  return skuMap[normalized] || null;
 }
 
 // --------------------
@@ -357,21 +368,33 @@ async function handleScan(value) {
   currentEntry.lot = currentEntry.lot || lot;
 
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
-    const sku = findSKU(currentEntry.gtin);
 
-    if (sku) {
-      addToTable({
-        sku,
-        lot: currentEntry.lot,
-        exp: currentEntry.exp
-      });
+    const gtin = extractGTIN(currentEntry.gtin || "");
+    const sku = findSKU(gtin);
 
-      beep(880);
+    if (!gtin) {
+      setStatus("Invalid barcode", "red");
+      beep(150);
       currentEntry = { gtin: null, lot: null, exp: null, sku: null };
-    } else {
-      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+      return;
     }
 
+    if (!sku) {
+      setStatus("Not found → assign", "orange");
+      window.location.href = "assign.html?gtin=" + gtin;
+      return;
+    }
+
+    addToTable({
+      sku,
+      lot: currentEntry.lot,
+      exp: currentEntry.exp
+    });
+
+    setStatus("Scanned: " + sku, "lime");
+    beep(880);
+
+    currentEntry = { gtin: null, lot: null, exp: null, sku: null };
     return;
   }
 

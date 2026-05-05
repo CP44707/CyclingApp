@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>Scanner</title>
+<title>Cycle Counter</title>
 
 <style>
   body {
@@ -16,21 +16,43 @@
     font-family: sans-serif;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
   }
 
-  input {
+  input, button {
     width: 90%;
-    font-size: 18px;
-    padding: 10px;
+    font-size: 16px;
+    padding: 8px;
+    margin-top: 4px;
     text-align: center;
   }
 
+  button {
+    background: #333;
+    color: white;
+    border: none;
+  }
+
   #status {
-    margin-top: 10px;
-    font-size: 14px;
+    margin: 6px;
+    font-size: 13px;
     text-align: center;
+  }
+
+  table {
+    width: 95%;
+    font-size: 12px;
+    border-collapse: collapse;
+  }
+
+  td, th {
+    border-bottom: 1px solid #444;
+    padding: 4px;
+    text-align: center;
+  }
+
+  tr:hover {
+    background: #222;
   }
 </style>
 </head>
@@ -38,137 +60,386 @@
 <body>
 
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
+<button id="manualBtn">Enter SKU Manually</button>
+
 <div id="status"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Lot</th>
+      <th>Exp</th>
+      <th>Qty</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
 
 <script src="config.js"></script>
 
 <script>
 const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
+const tbody = document.getElementById("tbody");
+const manualBtn = document.getElementById("manualBtn");
 
-// --------------------
-// BEEP
-// --------------------
-function beep(freq) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
-  o.frequency.value = freq;
-  o.connect(ctx.destination);
-  o.start();
-  setTimeout(() => o.stop(), 120);
+let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
+let skuMap = {};
+
+// ========================
+// ✅ PERSISTED TABLE STATE (ADDED)
+// ========================
+let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+function saveTable() {
+  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
 }
 
 // --------------------
-// CLEAN STRING
+// AUDIO
+// --------------------
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq) {
+  const o = audioCtx.createOscillator();
+  o.frequency.value = freq;
+  o.connect(audioCtx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 100);
+}
+
+// --------------------
+// CLEAN
 // --------------------
 function clean(v) {
-  return (v || "")
-    .toString()
-    .replace(/\r/g, "")
-    .trim();
+  return (v || "").toString().replace(/\r/g, "").trim();
 }
 
 // --------------------
-// EXTRACT GTIN (STRICT 14 DIGITS AFTER 01)
+// FORMAT DATE
 // --------------------
-function extractGTIN(raw) {
-  raw = clean(raw).replace(/\s+/g, "");
+function formatExp(exp) {
+  if (!exp || exp.length !== 6) return exp;
 
-  const match = raw.match(/01(\d{14})/);
-  return match ? match[1] : null;
+  const year = "20" + exp.slice(0,2);
+  const month = parseInt(exp.slice(2,4), 10) - 1;
+  const day = exp.slice(4,6);
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return `${day}-${months[month]}-${year.slice(2)}`;
 }
 
 // --------------------
-// SEARCH CSV DIRECTLY
+// MASTER PARSER
 // --------------------
-async function findSKU(gtin) {
-  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
-  const text = await res.text();
+function parseBarcode(raw) {
+  raw = clean(raw);
 
-  const lines = text.trim().split("\n");
+  if (/\(01\)/.test(raw)) {
+    return parseBracketed(raw);
+  } else {
+    return parseRawGS1(raw);
+  }
+}
 
-  // loop rows (skip header)
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",");
+// --------------------
+// BRACKETED PARSER
+// --------------------
+function parseBracketed(raw) {
+  let result = { gtin: null, exp: null, lot: null };
 
-    const sku = clean(cols[0]);
-    const csvGTIN = clean(cols[1]).replace(/\D/g, ""); // digits only
+  const gtinMatch = raw.match(/\(01\)(\d{14})/);
+  const expMatch = raw.match(/\(17\)(\d{6})/);
+  const lotMatch = raw.match(/\(10\)([^\(]+)/);
 
-    if (!sku || !csvGTIN) continue;
+  if (gtinMatch) result.gtin = gtinMatch[1];
+  if (expMatch) result.exp = expMatch[1];
+  if (lotMatch) result.lot = lotMatch[1].trim();
 
-    // normalize both to 14 digits
-    const normalizedCSV = csvGTIN.slice(-14);
-    const normalizedScan = gtin;
+  return result;
+}
 
-    if (normalizedCSV === normalizedScan) {
-      return sku;
-    }
+// --------------------
+// RAW GS1 PARSER
+// --------------------
+function parseRawGS1(raw) {
+  let data = raw.replace(/\s+/g, "");
+
+  let result = { gtin: null, exp: null, lot: null };
+
+  if (data.startsWith("01") && data.length >= 16) {
+    result.gtin = data.substring(2, 16);
+    data = data.substring(16);
+  } else {
+    return result;
   }
 
-  return null;
+  while (data.length > 0) {
+
+    if (data.startsWith("17") && data.length >= 8) {
+      result.exp = data.substring(2, 8);
+      data = data.substring(8);
+      continue;
+    }
+
+    if (data.startsWith("11") && data.length >= 8) {
+      data = data.substring(8);
+      continue;
+    }
+
+    if (data.startsWith("10")) {
+      let remainder = data.substring(2);
+      let gsIndex = remainder.indexOf("\u001D");
+
+      if (gsIndex !== -1) {
+        result.lot = remainder.substring(0, gsIndex);
+        data = remainder.substring(gsIndex + 1);
+      } else {
+        let nextIndex = remainder.search(/(11|17)/);
+
+        if (nextIndex === -1) {
+          result.lot = remainder;
+          data = "";
+        } else {
+          result.lot = remainder.substring(0, nextIndex);
+          data = remainder.substring(nextIndex);
+        }
+      }
+
+      continue;
+    }
+
+    break;
+  }
+
+  return result;
 }
 
 // --------------------
-// SCAN HANDLER
+// LOAD CSV
+// --------------------
+async function loadCSV() {
+  const res = await fetch(CONFIG.CSV_URL);
+  const text = await res.text();
+
+  text.split("\n").slice(1).forEach(line => {
+    const cols = line.split(",");
+    const sku = clean(cols[0]);
+    const gtin = clean(cols[1]).replace(/\D/g, "").slice(-14);
+
+    if (gtin) skuMap[gtin] = sku;
+  });
+}
+
+function findSKU(gtin) {
+  return skuMap[gtin] || null;
+}
+
+// --------------------
+// TABLE (UPDATED ONLY WITH SAVE)
+// --------------------
+function addToTable(item) {
+  const key = `${item.sku}_${item.lot}_${item.exp}`;
+  const existing = scannedItems.find(i => i.key === key);
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    scannedItems.push({ key, ...item, qty: 1 });
+  }
+
+  saveTable(); // ✅ ADDED
+  renderTable();
+}
+
+function renderTable() {
+  tbody.innerHTML = "";
+
+  scannedItems.forEach((item, index) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${item.sku}</td>
+      <td>${item.lot}</td>
+      <td>${formatExp(item.exp)}</td>
+      <td>${item.qty}</td>
+    `;
+
+    row.onclick = () => editRow(index);
+
+    tbody.appendChild(row);
+  });
+}
+
+// --------------------
+// EDIT ROW (ADDED SAVE)
+// --------------------
+function editRow(index) {
+  const item = scannedItems[index];
+
+  const sku = prompt("Edit SKU", item.sku);
+  if (sku === null) return;
+
+  const lot = prompt("Edit Lot", item.lot);
+  if (lot === null) return;
+
+  const exp = prompt("Edit Exp (YYMMDD)", item.exp);
+  if (exp === null) return;
+
+  const qty = parseInt(prompt("Edit Qty", item.qty), 10);
+  if (isNaN(qty)) return;
+
+  scannedItems[index] = {
+    key: `${sku}_${lot}_${exp}`,
+    sku, lot, exp, qty
+  };
+
+  saveTable(); // ✅ ADDED
+  renderTable();
+}
+
+// --------------------
+// HANDLE SCAN
 // --------------------
 async function handleScan(value) {
-  const gtin = extractGTIN(value);
+  let data = value.replace(/\s+/g, "");
 
-  if (!gtin) {
-    status.textContent = "Invalid barcode";
-    status.style.color = "red";
-    beep(150);
-    input.value = "";
+  let gtin = currentEntry.gtin;
+  let exp = currentEntry.exp;
+  let lot = currentEntry.lot;
+
+  // -------------------------
+  // STEP 1: GTIN (ONLY ONCE)
+  // -------------------------
+  if (!gtin && data.startsWith("01") && data.length >= 16) {
+    gtin = data.substring(2, 16);
+    data = data.substring(16);
+  }
+
+  // -------------------------
+  // STEP 2: LOOP CONSUMING REMAINING FIELDS
+  // -------------------------
+  while (data.length > 0) {
+
+    // EXP (17)
+    if (!exp && data.startsWith("17") && data.length >= 8) {
+      exp = data.substring(2, 8);
+      data = data.substring(8);
+      continue;
+    }
+
+    // SKIP 11
+    if (data.startsWith("11") && data.length >= 8) {
+      data = data.substring(8);
+      continue;
+    }
+
+    // LOT (10)
+    if (!lot && data.startsWith("10")) {
+      let remainder = data.substring(2);
+
+      let gsIndex = remainder.indexOf("\u001D");
+
+      if (gsIndex !== -1) {
+        lot = remainder.substring(0, gsIndex);
+        data = remainder.substring(gsIndex + 1);
+      } else {
+        // ❌ IMPORTANT FIX:
+        // DO NOT search for 17 or 11 anymore
+        // LOT is everything until end OR separator
+        lot = remainder;
+        data = "";
+      }
+
+      continue;
+    }
+
+    // nothing recognized → break
+    break;
+  }
+
+  // -------------------------
+  // STORE RESULT
+  // -------------------------
+  currentEntry.gtin = currentEntry.gtin || gtin;
+  currentEntry.exp = currentEntry.exp || exp;
+  currentEntry.lot = currentEntry.lot || lot;
+
+  // -------------------------
+  // FINAL CHECK
+  // -------------------------
+  if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
+    const sku = findSKU(currentEntry.gtin);
+
+    if (sku) {
+      addToTable({
+        sku,
+        lot: currentEntry.lot,
+        exp: currentEntry.exp
+      });
+
+      beep(880);
+      currentEntry = { gtin: null, lot: null, exp: null, sku: null };
+    } else {
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+    }
+
     return;
   }
 
-  status.textContent = "Searching...";
-  status.style.color = "white";
+  // -------------------------
+  // PARTIAL STATES
+  // -------------------------
+  if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
+    const sku = findSKU(currentEntry.gtin);
 
-  const sku = await findSKU(gtin);
+    if (!sku) {
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+    }
 
-  if (sku) {
-    status.textContent = "SKU: " + sku;
-    status.style.color = "lime";
-    beep(880);
-
-    input.value = "";
-  } else {
-    status.textContent = "Not found → assign";
-    status.style.color = "orange";
-
-    window.location.href =
-      "assign.html?gtin=" + encodeURIComponent(gtin);
+    return;
   }
+
+  if (!currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
+    return;
+  }
+
+  beep(150);
 }
 
 // --------------------
-// AUTO SCAN (NO ENTER REQUIRED)
+// AUTO SCAN
 // --------------------
 let buffer = "";
 let timer;
 
 input.addEventListener("input", (e) => {
   buffer = e.target.value;
-
   clearTimeout(timer);
 
   timer = setTimeout(() => {
     if (buffer.length > 0) {
       handleScan(buffer);
       buffer = "";
+      input.value = "";
     }
   }, 80);
 });
 
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    handleScan(input.value);
-    input.value = "";
-  }
-});
+// --------------------
+// MANUAL
+// --------------------
+manualBtn.onclick = () => {
+  window.location.href = "manual.html";
+};
 
-// keep focus
+// --------------------
+// INIT
+// --------------------
+loadCSV();
+renderTable();
+
 setInterval(() => input.focus(), 500);
 
 </script>

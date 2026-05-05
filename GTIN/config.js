@@ -1,5 +1,6 @@
 const CONFIG = {
   API_URL: "https://script.google.com/macros/s/AKfycbzeQtG3p4ATqX6Um5WeyvypH7RpPYkAVOxm5F_sLzav1UnDeJu_D81naEMU0mTT19-C/exec",
-  CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcNmdR8CzUL7BKaZkdrUttj8u9z73q6ThlT2h_6c5ua_dtbb6D93O-80vFDR3OwS-OcdXH_2NWhikf/pub?output=csv"
+  CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcNmdR8CzUL7BKaZkdrUttj8u9z73q6ThlT2h_6c5ua_dtbb6D93O-80vFDR3OwS-OcdXH_2NWhikf/pub?output=csv",
+  CYCLE_URL: "https://script.google.com/macros/s/AKfycbzzujRdB2K3bbXUh4jq-ePIE7BpaPznvL-Al7WEAzqpvtG2HAcRU8n2BvreN6yB7NZQsQ/exec"
 };
 

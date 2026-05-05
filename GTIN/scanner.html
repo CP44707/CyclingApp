@@ -238,19 +238,8 @@ async function loadCSV() {
   });
 }
 
-function extractGTIN(raw) {
-  raw = clean(raw).replace(/\s+/g, "");
-  const match = raw.match(/01(\d{14})/);
-  return match ? match[1] : null;
-}
-
-function normalizeGTIN(gtin) {
-  return (gtin || "").replace(/\D/g, "").slice(-14);
-}
-
 function findSKU(gtin) {
-  const normalized = normalizeGTIN(gtin);
-  return skuMap[normalized] || null;
+  return skuMap[gtin] || null;
 }
 
 // --------------------
@@ -368,49 +357,29 @@ async function handleScan(value) {
   currentEntry.lot = currentEntry.lot || lot;
 
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
+    const sku = findSKU(currentEntry.gtin);
 
-    // ✅ FIX 1: never shadow variable name
-    const extractedGTIN = extractGTIN(currentEntry.gtin || "");
+    if (sku) {
+      addToTable({
+        sku,
+        lot: currentEntry.lot,
+        exp: currentEntry.exp
+      });
 
-    // ✅ FIX 2: validate FIRST
-    if (!extractedGTIN) {
-      setStatus("Invalid barcode", "red");
-      beep(150);
+      beep(880);
       currentEntry = { gtin: null, lot: null, exp: null, sku: null };
-      return;
+    } else {
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
     }
 
-    // ✅ FIX 3: always use extracted GTIN
-    const sku = findSKU(extractedGTIN);
-
-    if (!sku) {
-      setStatus("Not found → assign", "orange");
-      window.location.href = "assign.html?gtin=" + extractedGTIN;
-      return;
-    }
-
-    addToTable({
-      sku,
-      lot: currentEntry.lot,
-      exp: currentEntry.exp
-    });
-
-    setStatus("Scanned: " + sku, "lime");
-    beep(880);
-
-    currentEntry = { gtin: null, lot: null, exp: null, sku: null };
     return;
   }
 
   if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
-
-    // ✅ FIX 4: normalize here too for consistency
-    const extractedGTIN = extractGTIN(currentEntry.gtin || "");
-
-    const sku = findSKU(extractedGTIN);
+    const sku = findSKU(currentEntry.gtin);
 
     if (!sku) {
-      window.location.href = "assign.html?gtin=" + extractedGTIN;
+      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
     }
 
     return;

@@ -154,8 +154,8 @@ function renderTable() {
         tr.innerHTML = `
             <td>${row.sku}</td>
             <td>${row.lot}</td>
-            <td>${row.exp}</td>
-            <td>${row.qty}</td>
+            <td>${row["Expiration Date"]}</td>
+            <td>${row["On Hand"]}</td>
             <td>
                 <button onclick="deleteRow(${index})">Delete</button>
             </td>

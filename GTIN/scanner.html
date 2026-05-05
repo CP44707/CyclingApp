@@ -91,10 +91,9 @@ const manualBtn = document.getElementById("manualBtn");
 const submitBtn = document.getElementById("submitBtn");
 
 let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
-let skuMap = {};
 
 // ========================
-// ✅ PERSISTED TABLE STATE (ADDED)
+// PERSISTED TABLE STATE
 // ========================
 let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 
@@ -223,27 +222,35 @@ function parseRawGS1(raw) {
 }
 
 // --------------------
-// LOAD CSV
+// FIND SKU (RESTORED OLD LOGIC)
 // --------------------
-async function loadCSV() {
-  const res = await fetch(CONFIG.CSV_URL);
+async function findSKU(gtin) {
+  const res = await fetch(CONFIG.CSV_URL + "&cache=" + Date.now());
   const text = await res.text();
 
-  text.split("\n").slice(1).forEach(line => {
-    const cols = line.split(",");
+  const lines = text.trim().split("\n");
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+
     const sku = clean(cols[0]);
-    const gtin = clean(cols[1]).replace(/\D/g, "").slice(-14);
+    const csvGTIN = clean(cols[1]).replace(/\D/g, "");
 
-    if (gtin) skuMap[gtin] = sku;
-  });
-}
+    if (!sku || !csvGTIN) continue;
 
-function findSKU(gtin) {
-  return skuMap[gtin] || null;
+    const normalizedCSV = csvGTIN.slice(-14);
+    const normalizedScan = gtin;
+
+    if (normalizedCSV === normalizedScan) {
+      return sku;
+    }
+  }
+
+  return null;
 }
 
 // --------------------
-// TABLE (UPDATED ONLY WITH SAVE)
+// TABLE
 // --------------------
 function addToTable(item) {
   const key = `${item.sku}_${item.lot}_${item.exp}`;
@@ -255,7 +262,7 @@ function addToTable(item) {
     scannedItems.push({ key, ...item, qty: 1 });
   }
 
-  saveTable(); // ✅ ADDED
+  saveTable();
   renderTable();
 }
 
@@ -279,7 +286,7 @@ function renderTable() {
 }
 
 // --------------------
-// EDIT ROW (ADDED SAVE)
+// EDIT ROW
 // --------------------
 function editRow(index) {
   const item = scannedItems[index];
@@ -301,7 +308,7 @@ function editRow(index) {
     sku, lot, exp, qty
   };
 
-  saveTable(); // ✅ ADDED
+  saveTable();
   renderTable();
 }
 
@@ -357,7 +364,7 @@ async function handleScan(value) {
   currentEntry.lot = currentEntry.lot || lot;
 
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
-    const sku = findSKU(currentEntry.gtin);
+    const sku = await findSKU(currentEntry.gtin);
 
     if (sku) {
       addToTable({
@@ -372,20 +379,6 @@ async function handleScan(value) {
       window.location.href = "assign.html?gtin=" + currentEntry.gtin;
     }
 
-    return;
-  }
-
-  if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
-    const sku = findSKU(currentEntry.gtin);
-
-    if (!sku) {
-      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
-    }
-
-    return;
-  }
-
-  if (!currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
     return;
   }
 
@@ -409,7 +402,6 @@ input.addEventListener("input", (e) => {
   }, 80);
 });
 
-// MANUAL
 manualBtn.onclick = () => {
   window.location.href = "manual.html";
 };

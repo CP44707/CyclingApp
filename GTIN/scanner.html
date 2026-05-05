@@ -428,7 +428,26 @@ submitBtn.onclick = () => {
   if (!type) return;
 
   if (type.toUpperCase() === "R") {
-    alert("Receiving not built yet.");
+
+    const po = prompt("Enter PO Number");
+    if (!po) return;
+
+    const session = "RECV-" + Date.now();
+
+    const reviewData = scannedItems.map(item => ({
+      receiptId: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      po,
+      session,
+      sku: item.sku,
+      lot: item.lot,
+      exp: item.exp,
+      qty: item.qty
+    }));
+
+    localStorage.setItem("receiveReviewData", JSON.stringify(reviewData));
+
+    window.location.href = "receiveReview.html";
     return;
   }
 

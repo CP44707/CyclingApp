@@ -125,6 +125,13 @@ const meta = document.getElementById("meta");
 const SHEET_URL = CONFIG.CYCLE_URL;
 
 // =========================
+// SAFE VALUE HELPER (FIXES UNDEFINED ISSUE)
+// =========================
+function safe(v) {
+    return (v === undefined || v === null) ? "" : v;
+}
+
+// =========================
 // META DISPLAY
 // =========================
 function renderMeta() {
@@ -136,26 +143,27 @@ function renderMeta() {
     const first = data[0];
 
     meta.innerHTML = `
-        <div><strong>Warehouse:</strong> ${first.warehouse}</div>
-        <div><strong>Bin:</strong> ${first.bin}</div>
-        <div><strong>Type:</strong> ${first.cycle}</div>
+        <div><strong>Warehouse:</strong> ${safe(first.warehouse)}</div>
+        <div><strong>Bin:</strong> ${safe(first.bin)}</div>
+        <div><strong>Type:</strong> ${safe(first.cycle)}</div>
     `;
 }
 
 // =========================
-// TABLE
+// TABLE (FIXED SAFE FIELDS)
 // =========================
 function renderTable() {
     tbody.innerHTML = "";
 
     data.forEach((row, index) => {
+
         const tr = document.createElement("tr");
 
         tr.innerHTML = `
-            <td>${row.sku}</td>
-            <td>${row.lot}</td>
-            <td>${row["Expiration Date"]}</td>
-            <td>${row["On Hand"]}</td>
+            <td>${safe(row.sku)}</td>
+            <td>${safe(row.lot)}</td>
+            <td>${safe(row["Expiration Date"] ?? row.exp)}</td>
+            <td>${safe(row["On Hand"] ?? row.qty)}</td>
             <td>
                 <button onclick="deleteRow(${index})">Delete</button>
             </td>
@@ -179,7 +187,7 @@ function deleteRow(index) {
 }
 
 // =========================
-// SEND
+// SEND (UNCHANGED LOGIC, SAFE TIMESTAMP FIX)
 // =========================
 async function sendToSheet() {
 
@@ -195,7 +203,11 @@ async function sendToSheet() {
 
             await fetch(SHEET_URL, {
                 method: "POST",
-                body: JSON.stringify(item),
+                body: JSON.stringify({
+                    ...item,
+                    // ensures timestamp ALWAYS exists
+                    timestamp: item.timestamp || new Date().toISOString()
+                }),
                 mode: "no-cors",
                 headers: {
                     "Content-Type": "text/plain"

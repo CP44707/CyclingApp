@@ -369,19 +369,23 @@ async function handleScan(value) {
 
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
 
-    const gtin = extractGTIN(currentEntry.gtin || "");
-    const sku = findSKU(gtin);
+    // ✅ FIX 1: never shadow variable name
+    const extractedGTIN = extractGTIN(currentEntry.gtin || "");
 
-    if (!gtin) {
+    // ✅ FIX 2: validate FIRST
+    if (!extractedGTIN) {
       setStatus("Invalid barcode", "red");
       beep(150);
       currentEntry = { gtin: null, lot: null, exp: null, sku: null };
       return;
     }
 
+    // ✅ FIX 3: always use extracted GTIN
+    const sku = findSKU(extractedGTIN);
+
     if (!sku) {
       setStatus("Not found → assign", "orange");
-      window.location.href = "assign.html?gtin=" + gtin;
+      window.location.href = "assign.html?gtin=" + extractedGTIN;
       return;
     }
 
@@ -399,10 +403,14 @@ async function handleScan(value) {
   }
 
   if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
-    const sku = findSKU(currentEntry.gtin);
+
+    // ✅ FIX 4: normalize here too for consistency
+    const extractedGTIN = extractGTIN(currentEntry.gtin || "");
+
+    const sku = findSKU(extractedGTIN);
 
     if (!sku) {
-      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
+      window.location.href = "assign.html?gtin=" + extractedGTIN;
     }
 
     return;

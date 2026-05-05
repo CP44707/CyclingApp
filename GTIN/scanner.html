@@ -62,6 +62,9 @@
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
 <button id="manualBtn">Enter SKU Manually</button>
 
+<!-- ✅ ADDED -->
+<button id="submitBtn">Submit</button>
+
 <div id="status"></div>
 
 <table>
@@ -83,6 +86,9 @@ const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
 const tbody = document.getElementById("tbody");
 const manualBtn = document.getElementById("manualBtn");
+
+/* ✅ ADDED */
+const submitBtn = document.getElementById("submitBtn");
 
 let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
 let skuMap = {};
@@ -309,33 +315,24 @@ async function handleScan(value) {
   let exp = currentEntry.exp;
   let lot = currentEntry.lot;
 
-  // -------------------------
-  // STEP 1: GTIN (ONLY ONCE)
-  // -------------------------
   if (!gtin && data.startsWith("01") && data.length >= 16) {
     gtin = data.substring(2, 16);
     data = data.substring(16);
   }
 
-  // -------------------------
-  // STEP 2: LOOP CONSUMING REMAINING FIELDS
-  // -------------------------
   while (data.length > 0) {
 
-    // EXP (17)
     if (!exp && data.startsWith("17") && data.length >= 8) {
       exp = data.substring(2, 8);
       data = data.substring(8);
       continue;
     }
 
-    // SKIP 11
     if (data.startsWith("11") && data.length >= 8) {
       data = data.substring(8);
       continue;
     }
 
-    // LOT (10)
     if (!lot && data.startsWith("10")) {
       let remainder = data.substring(2);
 
@@ -345,9 +342,6 @@ async function handleScan(value) {
         lot = remainder.substring(0, gsIndex);
         data = remainder.substring(gsIndex + 1);
       } else {
-        // ❌ IMPORTANT FIX:
-        // DO NOT search for 17 or 11 anymore
-        // LOT is everything until end OR separator
         lot = remainder;
         data = "";
       }
@@ -355,20 +349,13 @@ async function handleScan(value) {
       continue;
     }
 
-    // nothing recognized → break
     break;
   }
 
-  // -------------------------
-  // STORE RESULT
-  // -------------------------
   currentEntry.gtin = currentEntry.gtin || gtin;
   currentEntry.exp = currentEntry.exp || exp;
   currentEntry.lot = currentEntry.lot || lot;
 
-  // -------------------------
-  // FINAL CHECK
-  // -------------------------
   if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
     const sku = findSKU(currentEntry.gtin);
 
@@ -388,9 +375,6 @@ async function handleScan(value) {
     return;
   }
 
-  // -------------------------
-  // PARTIAL STATES
-  // -------------------------
   if (currentEntry.gtin && (!currentEntry.exp || !currentEntry.lot)) {
     const sku = findSKU(currentEntry.gtin);
 
@@ -408,9 +392,7 @@ async function handleScan(value) {
   beep(150);
 }
 
-// --------------------
 // AUTO SCAN
-// --------------------
 let buffer = "";
 let timer;
 
@@ -427,16 +409,67 @@ input.addEventListener("input", (e) => {
   }, 80);
 });
 
-// --------------------
 // MANUAL
-// --------------------
 manualBtn.onclick = () => {
   window.location.href = "manual.html";
 };
 
-// --------------------
+/* =======================
+   ✅ SUBMIT WORKFLOW ADDED
+======================= */
+submitBtn.onclick = () => {
+
+  if (!scannedItems.length) {
+    alert("No items to submit.");
+    return;
+  }
+
+  const type = prompt("Enter type: C = Cycle, R = Receiving");
+  if (!type) return;
+
+  if (type.toUpperCase() === "R") {
+    alert("Receiving not built yet.");
+    return;
+  }
+
+  if (type.toUpperCase() !== "C") {
+    alert("Invalid selection.");
+    return;
+  }
+
+  let warehouse = prompt("Warehouse (AB / ON)");
+  if (!warehouse) return;
+
+  warehouse = warehouse.toUpperCase();
+  if (warehouse !== "AB" && warehouse !== "ON") {
+    alert("Invalid warehouse.");
+    return;
+  }
+
+  const bin = prompt("Enter Bin Location");
+  if (!bin) return;
+
+  const timestamp = new Date().toISOString();
+
+  const reviewData = scannedItems.map(item => ({
+    timestamp,
+    cycle: "Cycle Count",
+    warehouse,
+    bin,
+    sku: item.sku,
+    lot: item.lot,
+
+    // ✅ ONLY CHANGED LINES:
+    "Expiration Date": formatExp(item.exp),
+    "On Hand": item.qty
+  }));
+
+  localStorage.setItem("reviewData", JSON.stringify(reviewData));
+
+  window.location.href = "review.html";
+};
+
 // INIT
-// --------------------
 loadCSV();
 renderTable();
 

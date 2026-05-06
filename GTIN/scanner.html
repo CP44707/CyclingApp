@@ -319,11 +319,11 @@ async function handleScan(value) {
   if (parsed.exp) currentEntry.exp = parsed.exp;
   if (parsed.lot) currentEntry.lot = parsed.lot;
 
-  if (currentEntry.exp && currentEntry.lot) {
+  if (currentEntry.lot) {
     addToTable({
       sku: currentEntry.sku,
       lot: currentEntry.lot,
-      exp: currentEntry.exp
+      exp: currentEntry.exp || ""
     });
 
     beep(880);

@@ -19,11 +19,36 @@
     align-items: center;
   }
 
+  #search {
+    width: 90%;
+    font-size: 14px;
+    padding: 8px;
+  }
+
+  #results {
+    width: 90%;
+    max-height: 90px;
+    overflow-y: auto;
+    background: #1b1b1b;
+    border: 1px solid #333;
+    margin-top: 5px;
+  }
+
+  .item {
+    padding: 6px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+  }
+
+  .item:hover {
+    background: #333;
+  }
+
   input, button {
     width: 90%;
     font-size: 14px;
     padding: 8px;
-    margin-top: 4px;
+    margin-top: 5px;
     text-align: center;
   }
 
@@ -31,24 +56,6 @@
     background: #333;
     color: white;
     border: none;
-  }
-
-  #suggestions {
-    width: 90%;
-    background: #222;
-    max-height: 90px;
-    overflow-y: auto;
-    font-size: 12px;
-  }
-
-  .sug {
-    padding: 5px;
-    border-bottom: 1px solid #333;
-    cursor: pointer;
-  }
-
-  .sug:hover {
-    background: #444;
   }
 
   table {
@@ -64,26 +71,24 @@
     text-align: center;
   }
 
-  .hidden { display: none; }
+  #lot, #exp, #qty, #addBtn {
+    display: none;
+  }
 </style>
 </head>
 
 <body>
 
-<!-- STEP 1: SKU -->
-<input id="skuInput" placeholder="Search SKU..." />
-<div id="suggestions"></div>
+<!-- SKU SEARCH (EXACT ASSIGN STYLE) -->
+<input id="search" placeholder="Search SKU..." />
+<div id="results"></div>
 
-<!-- STEP 2: LOT -->
-<input id="lotInput" class="hidden" placeholder="Enter LOT" />
+<!-- STEP INPUTS -->
+<input id="lot" placeholder="LOT" />
+<input id="exp" placeholder="EXP (optional)" />
+<input id="qty" type="number" value="1" min="1" />
 
-<!-- STEP 3: EXP -->
-<input id="expInput" class="hidden" placeholder="EXP (optional - press Enter to skip)" />
-
-<!-- STEP 4: QTY -->
-<input id="qtyInput" class="hidden" type="number" value="1" min="1" />
-
-<button id="addBtn" class="hidden">Add Item</button>
+<button id="addBtn">Add</button>
 <button id="sendBtn">Send to Scanner</button>
 
 <table>
@@ -103,138 +108,136 @@
 // ========================
 // STATE
 // ========================
-let skuMap = {};
+let allSKUs = [];
 let selectedSKU = null;
-let entries = {};
-let current = {};
+let entries = [];
 
 // ========================
-// LOAD CSV (Item = SKU)
+// BEEP
 // ========================
-async function loadCSV() {
-  const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), { cache: "no-store" });
+function beep(freq) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  o.frequency.value = freq;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 100);
+}
+
+// ========================
+// LOAD CSV (Item column = SKU)
+// ========================
+async function loadSKUs() {
+  const cacheBuster = localStorage.getItem("skuMapUpdatedAt") || Date.now();
+
+  const res = await fetch(CONFIG.CSV_URL + "&cache=" + cacheBuster);
   const text = await res.text();
 
-  skuMap = {};
-
-  const lines = text.split("\n");
+  const lines = text.trim().split("\n");
   const headers = lines[0].split(",");
-
   const itemIndex = headers.indexOf("Item");
 
-  lines.slice(1).forEach(line => {
-    const cols = line.split(",");
-    const item = cols[itemIndex]?.trim();
+  allSKUs = [];
 
-    if (item) skuMap[item] = true;
-  });
-}
-
-// ========================
-// STEP CONTROL
-// ========================
-function show(el) { document.getElementById(el).classList.remove("hidden"); }
-function hide(el) { document.getElementById(el).classList.add("hidden"); }
-
-function next(step) {
-  ["lotInput","expInput","qtyInput","addBtn"].forEach(hide);
-
-  if (step === "lot") show("lotInput");
-  if (step === "exp") show("expInput");
-  if (step === "qty") show("qtyInput");
-  if (step === "add") show("addBtn");
-}
-
-// ========================
-// SKU SEARCH
-// ========================
-const skuInput = document.getElementById("skuInput");
-const suggestions = document.getElementById("suggestions");
-
-skuInput.addEventListener("input", () => {
-  const val = skuInput.value.toUpperCase();
-  suggestions.innerHTML = "";
-
-  if (!val) return;
-
-  Object.keys(skuMap)
-    .filter(sku => sku.includes(val))
-    .slice(0, 8)
-    .forEach(sku => {
-      const div = document.createElement("div");
-      div.className = "sug";
-      div.textContent = sku;
-
-      div.onclick = () => {
-        selectedSKU = sku;
-        skuInput.value = sku;
-        suggestions.innerHTML = "";
-
-        next("lot");
-        show("lotInput");
-      };
-
-      suggestions.appendChild(div);
-    });
-});
-
-// ========================
-// LOT STEP
-// ========================
-document.getElementById("lotInput").addEventListener("change", (e) => {
-  current.lot = e.target.value.trim();
-  next("exp");
-  show("expInput");
-});
-
-// ========================
-// EXP STEP
-// ========================
-document.getElementById("expInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    current.exp = e.target.value.trim();
-    next("qty");
-    show("qtyInput");
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const sku = (cols[itemIndex] || "").trim();
+    if (sku) allSKUs.push(sku);
   }
+}
+
+loadSKUs();
+
+// ========================
+// SKU SEARCH (YOUR EXACT STYLE)
+// ========================
+const search = document.getElementById("search");
+const results = document.getElementById("results");
+
+search.addEventListener("input", () => {
+  const q = search.value.toLowerCase();
+  results.innerHTML = "";
+  selectedSKU = null;
+
+  if (!q) return;
+
+  const matches = allSKUs
+    .filter(s => s.toLowerCase().includes(q))
+    .slice(0, 10);
+
+  matches.forEach(sku => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.textContent = sku;
+
+    div.onclick = () => {
+      selectedSKU = sku;
+      search.value = sku;
+      results.innerHTML = "";
+      beep(880);
+
+      document.getElementById("lot").style.display = "block";
+    };
+
+    results.appendChild(div);
+  });
 });
 
 // ========================
-// QTY STEP
+// STEP FLOW
 // ========================
-document.getElementById("qtyInput").addEventListener("change", () => {
-  next("add");
-  show("addBtn");
+const lot = document.getElementById("lot");
+const exp = document.getElementById("exp");
+const qty = document.getElementById("qty");
+
+lot.addEventListener("change", () => {
+  exp.style.display = "block";
+});
+
+exp.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    qty.style.display = "block";
+    document.getElementById("addBtn").style.display = "block";
+  }
 });
 
 // ========================
 // ADD ITEM
 // ========================
 document.getElementById("addBtn").onclick = () => {
-  const qty = parseInt(document.getElementById("qtyInput").value || "1");
+  if (!selectedSKU) return;
 
-  const key = `${current.lot}_${current.exp}`;
+  const lotVal = lot.value.trim();
+  const expVal = exp.value.trim();
+  const qtyVal = parseInt(qty.value || "1");
 
-  if (!entries[key]) {
-    entries[key] = {
+  const key = `${lotVal}_${expVal}`;
+
+  const existing = entries.find(e => e.key === key);
+
+  if (existing) {
+    existing.qty += qtyVal;
+  } else {
+    entries.push({
+      key,
       sku: selectedSKU,
-      lot: current.lot,
-      exp: current.exp || "",
-      qty: 0
-    };
+      lot: lotVal,
+      exp: expVal,
+      qty: qtyVal
+    });
   }
-
-  entries[key].qty += qty;
 
   render();
 
-  // reset only lot/exp/qty
-  current = {};
-  document.getElementById("lotInput").value = "";
-  document.getElementById("expInput").value = "";
-  document.getElementById("qtyInput").value = "1";
+  lot.value = "";
+  exp.value = "";
+  qty.value = "1";
 
-  next("lot");
-  show("lotInput");
+  exp.style.display = "none";
+  qty.style.display = "none";
+  document.getElementById("addBtn").style.display = "none";
+
+  lot.style.display = "block";
 };
 
 // ========================
@@ -244,7 +247,7 @@ function render() {
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
 
-  Object.values(entries).forEach(e => {
+  entries.forEach(e => {
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -263,18 +266,11 @@ function render() {
 document.getElementById("sendBtn").onclick = () => {
   localStorage.setItem("lotExpReturn", JSON.stringify({
     sku: selectedSKU,
-    entries: Object.values(entries)
+    entries
   }));
 
   window.location.href = "scanner.html";
 };
-
-// ========================
-// INIT
-// ========================
-loadCSV();
-
-next("sku");
 
 </script>
 

@@ -63,21 +63,27 @@
     padding: 4px;
     text-align: center;
   }
+
+  .hidden { display: none; }
 </style>
 </head>
 
 <body>
 
-<!-- SKU SEARCH -->
-<input id="skuSearch" placeholder="Search SKU..." />
+<!-- STEP 1: SKU -->
+<input id="skuInput" placeholder="Search SKU..." />
 <div id="suggestions"></div>
 
-<!-- SIMPLE INPUTS -->
-<input id="lotInput" placeholder="LOT" />
-<input id="expInput" placeholder="EXP (optional)" />
-<input id="qtyInput" type="number" value="1" min="1" />
+<!-- STEP 2: LOT -->
+<input id="lotInput" class="hidden" placeholder="Enter LOT" />
 
-<button id="addBtn">Add</button>
+<!-- STEP 3: EXP -->
+<input id="expInput" class="hidden" placeholder="EXP (optional - press Enter to skip)" />
+
+<!-- STEP 4: QTY -->
+<input id="qtyInput" class="hidden" type="number" value="1" min="1" />
+
+<button id="addBtn" class="hidden">Add Item</button>
 <button id="sendBtn">Send to Scanner</button>
 
 <table>
@@ -99,10 +105,11 @@
 // ========================
 let skuMap = {};
 let selectedSKU = null;
-let entries = [];
+let entries = {};
+let current = {};
 
 // ========================
-// LOAD CSV (same source as scanner)
+// LOAD CSV (Item = SKU)
 // ========================
 async function loadCSV() {
   const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), { cache: "no-store" });
@@ -110,24 +117,42 @@ async function loadCSV() {
 
   skuMap = {};
 
-  text.split("\n").slice(1).forEach(line => {
-    const sku = line.split(",")[0]?.trim();
-    const gtin = line.split(",")[1]?.replace(/\D/g, "").slice(-14);
+  const lines = text.split("\n");
+  const headers = lines[0].split(",");
 
-    if (sku && gtin) {
-      skuMap[sku] = gtin; // same dataset scanner uses indirectly
-    }
+  const itemIndex = headers.indexOf("Item");
+
+  lines.slice(1).forEach(line => {
+    const cols = line.split(",");
+    const item = cols[itemIndex]?.trim();
+
+    if (item) skuMap[item] = true;
   });
 }
 
 // ========================
-// SKU SEARCH + SUGGESTIONS
+// STEP CONTROL
 // ========================
-const skuSearch = document.getElementById("skuSearch");
+function show(el) { document.getElementById(el).classList.remove("hidden"); }
+function hide(el) { document.getElementById(el).classList.add("hidden"); }
+
+function next(step) {
+  ["lotInput","expInput","qtyInput","addBtn"].forEach(hide);
+
+  if (step === "lot") show("lotInput");
+  if (step === "exp") show("expInput");
+  if (step === "qty") show("qtyInput");
+  if (step === "add") show("addBtn");
+}
+
+// ========================
+// SKU SEARCH
+// ========================
+const skuInput = document.getElementById("skuInput");
 const suggestions = document.getElementById("suggestions");
 
-skuSearch.addEventListener("input", () => {
-  const val = skuSearch.value.toUpperCase();
+skuInput.addEventListener("input", () => {
+  const val = skuInput.value.toUpperCase();
   suggestions.innerHTML = "";
 
   if (!val) return;
@@ -142,8 +167,11 @@ skuSearch.addEventListener("input", () => {
 
       div.onclick = () => {
         selectedSKU = sku;
-        skuSearch.value = sku;
+        skuInput.value = sku;
         suggestions.innerHTML = "";
+
+        next("lot");
+        show("lotInput");
       };
 
       suggestions.appendChild(div);
@@ -151,38 +179,62 @@ skuSearch.addEventListener("input", () => {
 });
 
 // ========================
-// ADD ROW
+// LOT STEP
+// ========================
+document.getElementById("lotInput").addEventListener("change", (e) => {
+  current.lot = e.target.value.trim();
+  next("exp");
+  show("expInput");
+});
+
+// ========================
+// EXP STEP
+// ========================
+document.getElementById("expInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    current.exp = e.target.value.trim();
+    next("qty");
+    show("qtyInput");
+  }
+});
+
+// ========================
+// QTY STEP
+// ========================
+document.getElementById("qtyInput").addEventListener("change", () => {
+  next("add");
+  show("addBtn");
+});
+
+// ========================
+// ADD ITEM
 // ========================
 document.getElementById("addBtn").onclick = () => {
-  if (!selectedSKU) {
-    alert("Select a SKU first");
-    return;
-  }
-
-  const lot = document.getElementById("lotInput").value.trim();
-  const exp = document.getElementById("expInput").value.trim();
   const qty = parseInt(document.getElementById("qtyInput").value || "1");
 
-  if (!lot) {
-    alert("LOT required");
-    return;
+  const key = `${current.lot}_${current.exp}`;
+
+  if (!entries[key]) {
+    entries[key] = {
+      sku: selectedSKU,
+      lot: current.lot,
+      exp: current.exp || "",
+      qty: 0
+    };
   }
 
-  const existing = entries.find(e =>
-    e.lot === lot && e.exp === exp
-  );
-
-  if (existing) {
-    existing.qty += qty;
-  } else {
-    entries.push({ sku: selectedSKU, lot, exp, qty });
-  }
+  entries[key].qty += qty;
 
   render();
 
+  // reset only lot/exp/qty
+  current = {};
   document.getElementById("lotInput").value = "";
   document.getElementById("expInput").value = "";
   document.getElementById("qtyInput").value = "1";
+
+  next("lot");
+  show("lotInput");
 };
 
 // ========================
@@ -192,7 +244,7 @@ function render() {
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
 
-  entries.forEach(e => {
+  Object.values(entries).forEach(e => {
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -206,12 +258,12 @@ function render() {
 }
 
 // ========================
-// SEND BACK TO SCANNER
+// SEND BACK
 // ========================
 document.getElementById("sendBtn").onclick = () => {
   localStorage.setItem("lotExpReturn", JSON.stringify({
     sku: selectedSKU,
-    entries
+    entries: Object.values(entries)
   }));
 
   window.location.href = "scanner.html";
@@ -221,6 +273,8 @@ document.getElementById("sendBtn").onclick = () => {
 // INIT
 // ========================
 loadCSV();
+
+next("sku");
 
 </script>
 

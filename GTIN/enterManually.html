@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>Manual Entry Wizard</title>
+<title>Manual Entry</title>
 
 <style>
   body {
@@ -36,13 +36,13 @@
   #suggestions {
     width: 90%;
     background: #222;
-    max-height: 80px;
+    max-height: 90px;
     overflow-y: auto;
     font-size: 12px;
   }
 
   .suggestion {
-    padding: 4px;
+    padding: 5px;
     border-bottom: 1px solid #333;
     cursor: pointer;
   }
@@ -63,34 +63,30 @@
     padding: 4px;
     text-align: center;
   }
-
-  .hidden { display: none; }
 </style>
 </head>
 
 <body>
 
-<div id="stepSku">
-  <input id="skuSearch" placeholder="Search SKU..." />
-  <div id="suggestions"></div>
-</div>
+<!-- STEP 1: SKU -->
+<input id="skuInput" placeholder="Search SKU..." />
+<div id="suggestions"></div>
 
-<div id="stepLot" class="hidden">
-  <input id="lotInput" placeholder="Enter LOT" />
-</div>
+<!-- STEP 2: LOT -->
+<input id="lotInput" placeholder="Enter LOT" style="display:none;" />
 
-<div id="stepExp" class="hidden">
-  <select id="yearSelect"></select>
-  <select id="monthSelect"></select>
-  <select id="daySelect"></select>
+<!-- STEP 3: EXP -->
+<div id="expBox" style="display:none;">
+  <select id="year"></select>
+  <select id="month"></select>
+  <select id="day"></select>
   <button id="skipExp">Skip Exp</button>
 </div>
 
-<div id="stepQty" class="hidden">
-  <input id="qtyInput" type="number" value="1" min="1" />
-</div>
+<!-- STEP 4: QTY -->
+<input id="qtyInput" type="number" value="1" min="1" style="display:none;" />
 
-<button id="addBtn" class="hidden">Add Item</button>
+<button id="addBtn" style="display:none;">Add Item</button>
 
 <table>
   <thead>
@@ -111,13 +107,13 @@
 // ========================
 // STATE
 // ========================
-let skuMap = {}; // SKU list
-let selectedSKU = "";
+let skuMap = {};
+let selectedSKU = null;
 let entries = [];
 let current = {};
 
 // ========================
-// LOAD CSV (SKU list)
+// LOAD SKU LIST
 // ========================
 async function loadCSV() {
   const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), { cache: "no-store" });
@@ -126,8 +122,7 @@ async function loadCSV() {
   skuMap = {};
 
   text.split("\n").slice(1).forEach(line => {
-    const cols = line.split(",");
-    const sku = cols[0]?.trim();
+    const sku = line.split(",")[0]?.trim();
     if (sku) skuMap[sku] = true;
   });
 }
@@ -135,11 +130,11 @@ async function loadCSV() {
 // ========================
 // SKU SEARCH
 // ========================
-const skuSearch = document.getElementById("skuSearch");
+const skuInput = document.getElementById("skuInput");
 const suggestions = document.getElementById("suggestions");
 
-skuSearch.addEventListener("input", () => {
-  const val = skuSearch.value.toUpperCase();
+skuInput.addEventListener("input", () => {
+  const val = skuInput.value.toUpperCase();
   suggestions.innerHTML = "";
 
   if (!val) return;
@@ -154,9 +149,10 @@ skuSearch.addEventListener("input", () => {
 
       div.onclick = () => {
         selectedSKU = sku;
-        skuSearch.value = sku;
+        skuInput.value = sku;
         suggestions.innerHTML = "";
-        nextStep("lot");
+
+        document.getElementById("lotInput").style.display = "block";
       };
 
       suggestions.appendChild(div);
@@ -164,33 +160,19 @@ skuSearch.addEventListener("input", () => {
 });
 
 // ========================
-// STEP CONTROL
+// LOT STEP
 // ========================
-function nextStep(step) {
-  document.getElementById("stepSku").classList.add("hidden");
-  document.getElementById("stepLot").classList.add("hidden");
-  document.getElementById("stepExp").classList.add("hidden");
-  document.getElementById("stepQty").classList.add("hidden");
-  document.getElementById("addBtn").classList.add("hidden");
-
-  if (step === "lot") document.getElementById("stepLot").classList.remove("hidden");
-  if (step === "exp") document.getElementById("stepExp").classList.remove("hidden");
-  if (step === "qty") document.getElementById("stepQty").classList.remove("hidden");
-  if (step === "add") document.getElementById("addBtn").classList.remove("hidden");
-}
-
-// ========================
-// LOT → EXP → QTY FLOW
-// ========================
-document.getElementById("lotInput").addEventListener("change", () => {
-  current.lot = document.getElementById("lotInput").value.trim();
-  nextStep("exp");
+document.getElementById("lotInput").addEventListener("change", (e) => {
+  current.lot = e.target.value.trim();
+  document.getElementById("expBox").style.display = "block";
 });
 
+// ========================
 // EXP SETUP
-const y = document.getElementById("yearSelect");
-const m = document.getElementById("monthSelect");
-const d = document.getElementById("daySelect");
+// ========================
+const y = document.getElementById("year");
+const m = document.getElementById("month");
+const d = document.getElementById("day");
 
 function initDates() {
   const now = new Date();
@@ -209,27 +191,30 @@ function initDates() {
   }
 }
 
+// skip exp
 document.getElementById("skipExp").onclick = () => {
   current.exp = "";
-  nextStep("qty");
+  showQty();
 };
 
+// when exp selected
 y.onchange = m.onchange = d.onchange = () => {
   if (y.value && m.value && d.value) {
     current.exp = `${y.value}-${m.value}-${d.value}`;
-    nextStep("qty");
+    showQty();
   }
 };
 
 // ========================
-// QTY
+// QTY STEP
 // ========================
-document.getElementById("qtyInput").addEventListener("change", () => {
-  nextStep("add");
-});
+function showQty() {
+  document.getElementById("qtyInput").style.display = "block";
+  document.getElementById("addBtn").style.display = "block";
+}
 
 // ========================
-// ADD
+// ADD ITEM
 // ========================
 document.getElementById("addBtn").onclick = () => {
   const qty = parseInt(document.getElementById("qtyInput").value || "1");
@@ -244,18 +229,20 @@ document.getElementById("addBtn").onclick = () => {
     entries.push({
       sku: selectedSKU,
       lot: current.lot,
-      exp: current.exp,
+      exp: current.exp || "",
       qty
     });
   }
 
   render();
 
-  // reset flow
+  // reset lot/exp/qty only
   document.getElementById("lotInput").value = "";
   document.getElementById("qtyInput").value = "1";
+  document.getElementById("expBox").style.display = "none";
+  document.getElementById("qtyInput").style.display = "none";
+  document.getElementById("addBtn").style.display = "none";
   current = {};
-  nextStep("lot");
 };
 
 // ========================
@@ -270,7 +257,7 @@ function render() {
 
     row.innerHTML = `
       <td>${e.lot}</td>
-      <td>${e.exp || ""}</td>
+      <td>${e.exp}</td>
       <td>${e.qty}</td>
     `;
 
@@ -279,7 +266,7 @@ function render() {
 }
 
 // ========================
-// SEND BACK
+// SEND BACK TO SCANNER
 // ========================
 document.getElementById("sendBtn").onclick = () => {
   localStorage.setItem("lotExpReturn", JSON.stringify({
@@ -295,11 +282,6 @@ document.getElementById("sendBtn").onclick = () => {
 // ========================
 loadCSV();
 initDates();
-
-// 🔥 START UI PROPERLY
-window.addEventListener("load", () => {
-  document.getElementById("stepSku").classList.remove("hidden");
-});
 
 </script>
 

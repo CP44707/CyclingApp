@@ -200,19 +200,22 @@ function parseRawGS1(raw) {
       const char = data[j];
       const nextAI = data.slice(j, j + 2);
 
-      // 🔥 separator / non-alphanumeric → end LOT
+      // 🔥 separator / non-alphanumeric ends LOT
       if (!/[A-Za-z0-9]/.test(char)) break;
 
-      // 🔥 potential AI detected
-      if (nextAI === "01" || nextAI === "17" || nextAI === "11") {
+      // 🔥 only treat as AI if it looks like a boundary
+      const isBoundary =
+        j === 0 || !/[A-Za-z0-9]/.test(data[j - 1]);
 
-        // check if it has at least 6 digits after it
+      if (isBoundary &&
+          (nextAI === "01" || nextAI === "17" || nextAI === "11")) {
+
         const after = data.slice(j + 2, j + 8);
 
+        // only stop if it's a REAL AI (6 digits after)
         if (/^\d{6}$/.test(after)) {
-          break; // real AI → stop LOT
+          break;
         }
-        // otherwise treat as LOT and continue
       }
 
       j++;

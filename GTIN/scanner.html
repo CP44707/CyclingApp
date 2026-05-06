@@ -216,8 +216,13 @@ function parseRawGS1(raw) {
 // LOAD CSV
 // --------------------
 async function loadCSV() {
-  const res = await fetch(CONFIG.CSV_URL);
+  const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), {
+    cache: "no-store"
+  });
+
   const text = await res.text();
+
+  skuMap = {}; // 🔥 clear old cache before rebuilding
 
   text.split("\n").slice(1).forEach(line => {
     const cols = line.split(",");

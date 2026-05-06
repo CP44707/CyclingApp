@@ -216,13 +216,8 @@ function parseRawGS1(raw) {
 // LOAD CSV
 // --------------------
 async function loadCSV() {
-  const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), {
-    cache: "no-store"
-  });
-
+  const res = await fetch(CONFIG.CSV_URL);
   const text = await res.text();
-
-  skuMap = {}; // 🔥 clear old cache before rebuilding
 
   text.split("\n").slice(1).forEach(line => {
     const cols = line.split(",");
@@ -276,12 +271,14 @@ function renderTable() {
 // --------------------
 async function handleScan(value) {
 
-  // 🔥 reset every scan (prevents stale GTIN)
+  // 🔥 ALWAYS reload latest sheet before processing
+  await loadCSV();
+
+  // 🔥 reset every scan
   currentEntry = { gtin: null, lot: null, exp: null, sku: null };
 
   const parsed = parseBarcode(value);
 
-  // 🔥 invalid if no GTIN
   if (!parsed || !parsed.gtin) {
     status.textContent = "Invalid barcode";
     beep(150);
@@ -292,7 +289,6 @@ async function handleScan(value) {
 
   const sku = findSKU(parsed.gtin);
 
-  // 🔥 unknown GTIN → redirect
   if (!sku) {
     window.location.href = "assign.html?gtin=" + parsed.gtin;
     return;

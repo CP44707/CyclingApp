@@ -5,124 +5,12 @@
 </head>
 <body>
 
-<h2>SKU ↔ GTIN Manager</h2>
-
-<!-- INPUTS -->
-<input type="text" id="item" placeholder="Enter SKU">
-<input type="text" id="gtin" placeholder="Enter GTIN">
-
-<br><br>
-
-<!-- ACTION BUTTONS -->
-<button onclick="sendData()">Save</button>
-<button onclick="getData()">Load Data</button>
-<button onclick="deleteBlanks()">Delete Blank Rows</button>
-<button onclick="goToScanner()">Open Scanner</button>
+<button onclick="goToScanner()" style="height: 1vh; width: 1vw;" >Open Scanner</button>
 
 <script>
 function goToScanner() {
   window.location.href = "scanner.html";
 }
-</script>
-
-<br><br>
-
-<!-- TABLE -->
-<table border="1">
-  <thead>
-    <tr>
-      <th>Item (SKU)</th>
-      <th>GTIN</th>
-    </tr>
-  </thead>
-  <tbody id="tableBody"></tbody>
-</table>
-
-<!-- CONFIG -->
-<script src="config.js"></script>
-
-<script>
-// SEND DATA TO GOOGLE SHEET
-async function sendData() {
-  const item = document.getElementById("item").value.trim();
-  const gtin = document.getElementById("gtin").value.trim();
-
-  if (!item || !gtin) {
-    alert("Both fields are required");
-    return;
-  }
-
-  await fetch(CONFIG.API_URL, {
-    method: "POST",
-    body: JSON.stringify({ item, gtin }),
-    headers: {
-      "Content-Type": "application/json"
-    }
-  });
-
-  alert("Saved!");
-
-  // clear inputs
-  document.getElementById("item").value = "";
-  document.getElementById("gtin").value = "";
-
-  getData(); // refresh table
-}
-
-// SIMPLE CSV PARSER
-function parseCSV(text) {
-  const rows = text.trim().split("\n");
-  return rows.map(row => row.split(","));
-}
-
-// LOAD DATA FROM CSV
-async function getData() {
-  const response = await fetch(CONFIG.CSV_URL);
-  const text = await response.text();
-
-  const rows = parseCSV(text);
-
-  // remove header row
-  rows.shift();
-
-  const tbody = document.getElementById("tableBody");
-  tbody.innerHTML = "";
-
-  rows.forEach(row => {
-    const [item, gtin] = row;
-
-    const tr = document.createElement("tr");
-
-    const tdItem = document.createElement("td");
-    tdItem.textContent = item || "";
-
-    const tdGtin = document.createElement("td");
-    tdGtin.textContent = gtin || "";
-
-    tr.appendChild(tdItem);
-    tr.appendChild(tdGtin);
-    tbody.appendChild(tr);
-  });
-}
-
-// DELETE BLANK ROWS VIA APPS SCRIPT
-async function deleteBlanks() {
-  if (!confirm("Are you sure you want to delete all blank rows?")) return;
-
-  await fetch(CONFIG.API_URL, {
-    method: "POST",
-    body: JSON.stringify({ action: "deleteBlanks" }),
-    headers: {
-      "Content-Type": "application/json"
-    }
-  });
-
-  alert("Blank rows removed!");
-  getData(); // refresh table
-}
-
-// AUTO LOAD ON PAGE OPEN
-window.onload = getData;
 </script>
 
 </body>

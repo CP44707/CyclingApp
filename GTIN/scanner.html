@@ -60,7 +60,7 @@
 <body>
 
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
-<button id="manualBtn">Enter SKU Manually</button>
+<button id="manualBtn">Manual Entry</button>
 
 <div id="status"></div>
 
@@ -91,6 +91,10 @@ let skuMap = {};
 // PERSISTED TABLE STATE
 // ========================
 let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+manualBtn.addEventListener("click", () => {
+  window.location.href = "enterManually.html";
+});
 
 function saveTable() {
   localStorage.setItem("cycleTable", JSON.stringify(scannedItems));

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+<title>Manual Entry</title>
+
+<style>
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  input, select, button {
+    width: 90%;
+    font-size: 14px;
+    padding: 6px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  button {
+    background: #333;
+    color: white;
+    border: none;
+  }
+
+  table {
+    width: 95%;
+    font-size: 12px;
+    border-collapse: collapse;
+    margin-top: 6px;
+  }
+
+  td, th {
+    border-bottom: 1px solid #444;
+    padding: 4px;
+    text-align: center;
+  }
+</style>
+</head>
+
+<body>
+
+<input id="skuInput" placeholder="Enter SKU" />
+<input id="lotInput" placeholder="Enter LOT" />
+<input id="qtyInput" placeholder="Quantity" type="number" value="1" min="1"/>
+
+<!-- EXP DATE PICKERS -->
+<select id="yearSelect"></select>
+<select id="monthSelect"></select>
+<select id="daySelect"></select>
+
+<button id="addBtn">Add Item</button>
+
+<table>
+  <thead>
+    <tr>
+      <th>LOT</th>
+      <th>EXP</th>
+      <th>QTY</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<button id="sendBtn">Send to Scanner</button>
+
+<script src="config.js"></script>
+
+<script>
+// ========================
+// STATE
+// ========================
+let skuMap = {};
+let entries = [];
+
+// ========================
+// LOAD CSV (for SKU validation)
+// ========================
+async function loadCSV() {
+  const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), { cache: "no-store" });
+  const text = await res.text();
+
+  text.split("\n").slice(1).forEach(line => {
+    const cols = line.split(",");
+    const sku = cols[0]?.trim();
+    const gtin = cols[1]?.replace(/\D/g, "").slice(-14);
+
+    if (sku) skuMap[sku] = true;
+  });
+}
+
+// ========================
+// EXP DROPDOWNS
+// ========================
+function initDatePickers() {
+  const year = document.getElementById("yearSelect");
+  const month = document.getElementById("monthSelect");
+  const day = document.getElementById("daySelect");
+
+  year.innerHTML = `<option value="">Year</option>`;
+  month.innerHTML = `<option value="">Month</option>`;
+  day.innerHTML = `<option value="">Day</option>`;
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  for (let y = currentYear; y <= currentYear + 10; y++) {
+    year.innerHTML += `<option value="${y}">${y}</option>`;
+  }
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  months.forEach((m, i) => {
+    month.innerHTML += `<option value="${i+1}">${m}</option>`;
+  });
+
+  for (let d = 1; d <= 31; d++) {
+    day.innerHTML += `<option value="${d}">${d}</option>`;
+  }
+}
+
+// ========================
+// FORMAT EXP
+// ========================
+function formatExp(y, m, d) {
+  if (!y || !m || !d) return "";
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${String(d).padStart(2,"0")}-${months[m-1]}-${String(y).slice(2)}`;
+}
+
+// ========================
+// TABLE
+// ========================
+function render() {
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  entries.forEach(e => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${e.lot}</td>
+      <td>${e.exp}</td>
+      <td>${e.qty}</td>
+    `;
+
+    tbody.appendChild(row);
+  });
+}
+
+// ========================
+// ADD ITEM
+// ========================
+document.getElementById("addBtn").addEventListener("click", () => {
+  const sku = document.getElementById("skuInput").value.trim();
+  const lot = document.getElementById("lotInput").value.trim();
+  const qty = parseInt(document.getElementById("qtyInput").value || "1");
+
+  const y = document.getElementById("yearSelect").value;
+  const m = document.getElementById("monthSelect").value;
+  const d = document.getElementById("daySelect").value;
+
+  if (!skuMap[sku]) {
+    alert("SKU not found");
+    return;
+  }
+
+  if (!lot) {
+    alert("LOT required");
+    return;
+  }
+
+  const exp = formatExp(y, m, d);
+
+  const existing = entries.find(e => e.lot === lot && e.exp === exp);
+
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    entries.push({ sku, lot, exp, qty });
+  }
+
+  render();
+});
+
+// ========================
+// SEND BACK
+// ========================
+document.getElementById("sendBtn").addEventListener("click", () => {
+
+  const payload = {
+    sku: document.getElementById("skuInput").value.trim(),
+    entries
+  };
+
+  localStorage.setItem("lotExpReturn", JSON.stringify(payload));
+
+  window.location.href = "scanner.html";
+});
+
+// ========================
+// INIT
+// ========================
+loadCSV();
+initDatePickers();
+
+</script>
+
+</body>
+</html>

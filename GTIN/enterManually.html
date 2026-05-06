@@ -295,7 +295,11 @@ document.getElementById("sendBtn").onclick = () => {
 // ========================
 loadCSV();
 initDates();
-nextStep("sku");
+
+// 🔥 START UI PROPERLY
+window.addEventListener("load", () => {
+  document.getElementById("stepSku").classList.remove("hidden");
+});
 
 </script>
 

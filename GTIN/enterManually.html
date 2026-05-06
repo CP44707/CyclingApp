@@ -19,7 +19,7 @@
     align-items: center;
   }
 
-  input, select, button {
+  input, button {
     width: 90%;
     font-size: 14px;
     padding: 8px;
@@ -41,13 +41,13 @@
     font-size: 12px;
   }
 
-  .suggestion {
+  .sug {
     padding: 5px;
     border-bottom: 1px solid #333;
     cursor: pointer;
   }
 
-  .suggestion:hover {
+  .sug:hover {
     background: #444;
   }
 
@@ -68,25 +68,17 @@
 
 <body>
 
-<!-- STEP 1: SKU -->
-<input id="skuInput" placeholder="Search SKU..." />
+<!-- SKU SEARCH -->
+<input id="skuSearch" placeholder="Search SKU..." />
 <div id="suggestions"></div>
 
-<!-- STEP 2: LOT -->
-<input id="lotInput" placeholder="Enter LOT" style="display:none;" />
+<!-- SIMPLE INPUTS -->
+<input id="lotInput" placeholder="LOT" />
+<input id="expInput" placeholder="EXP (optional)" />
+<input id="qtyInput" type="number" value="1" min="1" />
 
-<!-- STEP 3: EXP -->
-<div id="expBox" style="display:none;">
-  <select id="year"></select>
-  <select id="month"></select>
-  <select id="day"></select>
-  <button id="skipExp">Skip Exp</button>
-</div>
-
-<!-- STEP 4: QTY -->
-<input id="qtyInput" type="number" value="1" min="1" style="display:none;" />
-
-<button id="addBtn" style="display:none;">Add Item</button>
+<button id="addBtn">Add</button>
+<button id="sendBtn">Send to Scanner</button>
 
 <table>
   <thead>
@@ -99,8 +91,6 @@
   <tbody id="tbody"></tbody>
 </table>
 
-<button id="sendBtn">Send to Scanner</button>
-
 <script src="config.js"></script>
 
 <script>
@@ -110,10 +100,9 @@
 let skuMap = {};
 let selectedSKU = null;
 let entries = [];
-let current = {};
 
 // ========================
-// LOAD SKU LIST
+// LOAD CSV (same source as scanner)
 // ========================
 async function loadCSV() {
   const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), { cache: "no-store" });
@@ -123,36 +112,38 @@ async function loadCSV() {
 
   text.split("\n").slice(1).forEach(line => {
     const sku = line.split(",")[0]?.trim();
-    if (sku) skuMap[sku] = true;
+    const gtin = line.split(",")[1]?.replace(/\D/g, "").slice(-14);
+
+    if (sku && gtin) {
+      skuMap[sku] = gtin; // same dataset scanner uses indirectly
+    }
   });
 }
 
 // ========================
-// SKU SEARCH
+// SKU SEARCH + SUGGESTIONS
 // ========================
-const skuInput = document.getElementById("skuInput");
+const skuSearch = document.getElementById("skuSearch");
 const suggestions = document.getElementById("suggestions");
 
-skuInput.addEventListener("input", () => {
-  const val = skuInput.value.toUpperCase();
+skuSearch.addEventListener("input", () => {
+  const val = skuSearch.value.toUpperCase();
   suggestions.innerHTML = "";
 
   if (!val) return;
 
   Object.keys(skuMap)
     .filter(sku => sku.includes(val))
-    .slice(0, 6)
+    .slice(0, 8)
     .forEach(sku => {
       const div = document.createElement("div");
-      div.className = "suggestion";
+      div.className = "sug";
       div.textContent = sku;
 
       div.onclick = () => {
         selectedSKU = sku;
-        skuInput.value = sku;
+        skuSearch.value = sku;
         suggestions.innerHTML = "";
-
-        document.getElementById("lotInput").style.display = "block";
       };
 
       suggestions.appendChild(div);
@@ -160,89 +151,38 @@ skuInput.addEventListener("input", () => {
 });
 
 // ========================
-// LOT STEP
-// ========================
-document.getElementById("lotInput").addEventListener("change", (e) => {
-  current.lot = e.target.value.trim();
-  document.getElementById("expBox").style.display = "block";
-});
-
-// ========================
-// EXP SETUP
-// ========================
-const y = document.getElementById("year");
-const m = document.getElementById("month");
-const d = document.getElementById("day");
-
-function initDates() {
-  const now = new Date();
-
-  for (let i = now.getFullYear(); i <= now.getFullYear() + 10; i++) {
-    y.innerHTML += `<option value="${i}">${i}</option>`;
-  }
-
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  months.forEach((mm, i) => {
-    m.innerHTML += `<option value="${i+1}">${mm}</option>`;
-  });
-
-  for (let i = 1; i <= 31; i++) {
-    d.innerHTML += `<option value="${i}">${i}</option>`;
-  }
-}
-
-// skip exp
-document.getElementById("skipExp").onclick = () => {
-  current.exp = "";
-  showQty();
-};
-
-// when exp selected
-y.onchange = m.onchange = d.onchange = () => {
-  if (y.value && m.value && d.value) {
-    current.exp = `${y.value}-${m.value}-${d.value}`;
-    showQty();
-  }
-};
-
-// ========================
-// QTY STEP
-// ========================
-function showQty() {
-  document.getElementById("qtyInput").style.display = "block";
-  document.getElementById("addBtn").style.display = "block";
-}
-
-// ========================
-// ADD ITEM
+// ADD ROW
 // ========================
 document.getElementById("addBtn").onclick = () => {
+  if (!selectedSKU) {
+    alert("Select a SKU first");
+    return;
+  }
+
+  const lot = document.getElementById("lotInput").value.trim();
+  const exp = document.getElementById("expInput").value.trim();
   const qty = parseInt(document.getElementById("qtyInput").value || "1");
 
+  if (!lot) {
+    alert("LOT required");
+    return;
+  }
+
   const existing = entries.find(e =>
-    e.lot === current.lot && e.exp === current.exp
+    e.lot === lot && e.exp === exp
   );
 
   if (existing) {
     existing.qty += qty;
   } else {
-    entries.push({
-      sku: selectedSKU,
-      lot: current.lot,
-      exp: current.exp || "",
-      qty
-    });
+    entries.push({ sku: selectedSKU, lot, exp, qty });
   }
 
   render();
 
-  // reset lot/exp/qty only
   document.getElementById("lotInput").value = "";
+  document.getElementById("expInput").value = "";
   document.getElementById("qtyInput").value = "1";
-  document.getElementById("expBox").style.display = "none";
-  document.getElementById("qtyInput").style.display = "none";
-  document.getElementById("addBtn").style.display = "none";
-  current = {};
 };
 
 // ========================
@@ -281,7 +221,6 @@ document.getElementById("sendBtn").onclick = () => {
 // INIT
 // ========================
 loadCSV();
-initDates();
 
 </script>
 

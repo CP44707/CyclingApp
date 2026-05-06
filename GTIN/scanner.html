@@ -376,11 +376,17 @@ function handleReturnedLotExp() {
   if (!returned || !returned.entries) return;
 
   returned.entries.forEach(e => {
-    addToTable({
-      sku: returned.sku,
-      lot: e.lot,
-      exp: e.exp || ""
-    });
+
+    const count = e.qty || 1;
+
+    for (let i = 0; i < count; i++) {
+      addToTable({
+        sku: returned.sku,
+        lot: e.lot,
+        exp: e.exp || ""
+      });
+    }
+
   });
 
   localStorage.removeItem("lotExpReturn");

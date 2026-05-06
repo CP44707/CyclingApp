@@ -161,7 +161,7 @@ function parseBracketed(raw) {
 }
 
 // ======================================================
-// 🔥 FIXED GS1 STATE MACHINE PARSER (ONLY CHANGE HERE)
+// GS1 STATE MACHINE PARSER
 // ======================================================
 function parseRawGS1(raw) {
   let data = raw.replace(/\s+/g, "");
@@ -174,45 +174,30 @@ function parseRawGS1(raw) {
 
     const ai = data.slice(i, i + 2);
 
-    // --------------------
-    // GTIN (01)
-    // --------------------
     if (ai === "01" && result.gtin === null) {
       result.gtin = data.slice(i + 2, i + 16);
       i += 16;
       continue;
     }
 
-    // --------------------
-    // EXP (17)
-    // --------------------
     if (ai === "17" && result.exp === null) {
       result.exp = data.slice(i + 2, i + 8);
       i += 8;
       continue;
     }
 
-    // --------------------
-    // SKIP 11
-    // --------------------
     if (ai === "11") {
       i += 8;
       continue;
     }
 
-    // --------------------
-    // LOT (10)
-    // --------------------
     if (ai === "10" && result.lot === null) {
       let start = i + 2;
       let j = start;
 
       while (j < data.length) {
         const nextAI = data.slice(j, j + 2);
-
-        // ONLY STOP IF AI IS AT CURSOR
         if (nextAI === "01" || nextAI === "17" || nextAI === "11") break;
-
         j++;
       }
 
@@ -221,7 +206,6 @@ function parseRawGS1(raw) {
       continue;
     }
 
-    // unknown → move forward safely
     i++;
   }
 
@@ -229,7 +213,7 @@ function parseRawGS1(raw) {
 }
 
 // --------------------
-// LOAD CSV (UNCHANGED)
+// LOAD CSV
 // --------------------
 async function loadCSV() {
   const res = await fetch(CONFIG.CSV_URL);
@@ -249,7 +233,7 @@ function findSKU(gtin) {
 }
 
 // --------------------
-// TABLE (UNCHANGED)
+// TABLE
 // --------------------
 function addToTable(item) {
   const key = `${item.sku}_${item.lot}_${item.exp}`;
@@ -283,35 +267,46 @@ function renderTable() {
 }
 
 // --------------------
-// HANDLE SCAN (UNCHANGED)
+// HANDLE SCAN (FIXED)
 // --------------------
 async function handleScan(value) {
+
+  // 🔥 reset every scan (prevents stale GTIN)
+  currentEntry = { gtin: null, lot: null, exp: null, sku: null };
+
   const parsed = parseBarcode(value);
 
-  if (parsed.gtin) currentEntry.gtin = parsed.gtin;
-  if (parsed.exp) currentEntry.exp = parsed.exp;
-  if (parsed.lot) currentEntry.lot = parsed.lot;
-
-  if (currentEntry.gtin && currentEntry.exp && currentEntry.lot) {
-    const sku = findSKU(currentEntry.gtin);
-
-    if (sku) {
-      addToTable({
-        sku,
-        lot: currentEntry.lot,
-        exp: currentEntry.exp
-      });
-
-      beep(880);
-      currentEntry = { gtin: null, lot: null, exp: null, sku: null };
-    } else {
-      window.location.href = "assign.html?gtin=" + currentEntry.gtin;
-    }
-
+  // 🔥 invalid if no GTIN
+  if (!parsed || !parsed.gtin) {
+    status.textContent = "Invalid barcode";
+    beep(150);
     return;
   }
 
-  beep(150);
+  currentEntry.gtin = parsed.gtin;
+
+  const sku = findSKU(parsed.gtin);
+
+  // 🔥 unknown GTIN → redirect
+  if (!sku) {
+    window.location.href = "assign.html?gtin=" + parsed.gtin;
+    return;
+  }
+
+  currentEntry.sku = sku;
+
+  if (parsed.exp) currentEntry.exp = parsed.exp;
+  if (parsed.lot) currentEntry.lot = parsed.lot;
+
+  if (currentEntry.exp && currentEntry.lot) {
+    addToTable({
+      sku: currentEntry.sku,
+      lot: currentEntry.lot,
+      exp: currentEntry.exp
+    });
+
+    beep(880);
+  }
 }
 
 // --------------------

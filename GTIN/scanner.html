@@ -196,8 +196,15 @@ function parseRawGS1(raw) {
       let j = start;
 
       while (j < data.length) {
+        const char = data[j];
         const nextAI = data.slice(j, j + 2);
+
+        // 🔥 STOP if next AI starts
         if (nextAI === "01" || nextAI === "17" || nextAI === "11") break;
+
+        // 🔥 STOP on separator / non-standard char
+        if (!/[A-Za-z0-9]/.test(char)) break;
+
         j++;
       }
 

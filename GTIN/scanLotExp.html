@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+<title>Scan LOT + EXP</title>
+
+<style>
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #skuHeader {
+    font-size: 16px;
+    margin: 6px;
+    font-weight: bold;
+  }
+
+  input {
+    width: 90%;
+    font-size: 16px;
+    padding: 8px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  button {
+    width: 90%;
+    font-size: 14px;
+    padding: 8px;
+    margin-top: 4px;
+    background: #333;
+    color: white;
+    border: none;
+  }
+
+  table {
+    width: 95%;
+    font-size: 12px;
+    border-collapse: collapse;
+    margin-top: 6px;
+  }
+
+  td, th {
+    border-bottom: 1px solid #444;
+    padding: 4px;
+    text-align: center;
+  }
+
+  tr:hover {
+    background: #222;
+  }
+</style>
+</head>
+
+<body>
+
+<div id="skuHeader">SKU: ...</div>
+
+<input id="scanInput" autofocus placeholder="Scan LOT / EXP..." />
+<button id="sendBtn">Send Back to Scanner</button>
+
+<table>
+  <thead>
+    <tr>
+      <th>LOT</th>
+      <th>EXP</th>
+      <th>QTY</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+// =========================
+// GET CONTEXT FROM URL
+// =========================
+const params = new URLSearchParams(window.location.search);
+const sku = params.get("sku") || "";
+const gtin = params.get("gtin") || "";
+
+document.getElementById("skuHeader").textContent = "SKU: " + sku;
+
+// =========================
+// STATE
+// =========================
+const input = document.getElementById("scanInput");
+const tbody = document.getElementById("tbody");
+
+let entries = [];
+
+// =========================
+// AUDIO
+// =========================
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq) {
+  const o = audioCtx.createOscillator();
+  o.frequency.value = freq;
+  o.connect(audioCtx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 100);
+}
+
+// =========================
+// FORMAT EXP
+// =========================
+function formatExp(exp) {
+  if (!exp || exp.length !== 6) return exp;
+
+  const year = "20" + exp.slice(0,2);
+  const month = parseInt(exp.slice(2,4), 10) - 1;
+  const day = exp.slice(4,6);
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return `${day}-${months[month]}-${year.slice(2)}`;
+}
+
+// =========================
+// ADD / GROUP ROWS
+// =========================
+function addEntry(lot, exp) {
+  const key = lot + "_" + exp;
+
+  const existing = entries.find(e => e.key === key);
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    entries.push({ key, lot, exp, qty: 1 });
+  }
+
+  render();
+}
+
+function render() {
+  tbody.innerHTML = "";
+
+  entries.forEach(e => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${e.lot}</td>
+      <td>${formatExp(e.exp)}</td>
+      <td>${e.qty}</td>
+    `;
+
+    tbody.appendChild(row);
+  });
+}
+
+// =========================
+// PARSER (LOT + EXP ONLY)
+// =========================
+function parse(raw) {
+  raw = raw.replace(/\s+/g, "");
+
+  let lot = null;
+  let exp = null;
+
+  let i = 0;
+
+  while (i < raw.length) {
+
+    const ai = raw.slice(i, i + 2);
+
+    if (ai === "17") {
+      exp = raw.slice(i + 2, i + 8);
+      i += 8;
+      continue;
+    }
+
+    if (ai === "10") {
+      let start = i + 2;
+      let j = start;
+
+      while (j < raw.length) {
+        const next = raw.slice(j, j + 2);
+        if (next === "17" || next === "01" || next === "11") break;
+        j++;
+      }
+
+      lot = raw.slice(start, j);
+      i = j;
+      continue;
+    }
+
+    i++;
+  }
+
+  return { lot, exp };
+}
+
+// =========================
+// SCAN INPUT
+// =========================
+let buffer = "";
+let timer;
+
+input.addEventListener("input", (e) => {
+  buffer = e.target.value;
+  clearTimeout(timer);
+
+  timer = setTimeout(() => {
+    if (!buffer) return;
+
+    const parsed = parse(buffer);
+
+    if (!parsed.lot) {
+      beep(150);
+      buffer = "";
+      input.value = "";
+      return;
+    }
+
+    addEntry(parsed.lot, parsed.exp || "");
+
+    beep(880);
+
+    buffer = "";
+    input.value = "";
+  }, 80);
+});
+
+// =========================
+// SEND BACK TO MAIN PAGE
+// =========================
+document.getElementById("sendBtn").addEventListener("click", () => {
+
+  const payload = {
+    sku,
+    gtin,
+    entries
+  };
+
+  localStorage.setItem("lotExpReturn", JSON.stringify(payload));
+
+  window.location.href = "scanner.html";
+});
+
+</script>
+
+</body>
+</html>

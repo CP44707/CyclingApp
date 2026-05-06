@@ -365,6 +365,29 @@ renderTable();
 
 setInterval(() => input.focus(), 500);
 
+
+
+function handleReturnedLotExp() {
+  const raw = localStorage.getItem("lotExpReturn");
+  if (!raw) return;
+
+  const returned = JSON.parse(raw);
+
+  if (!returned || !returned.entries) return;
+
+  returned.entries.forEach(e => {
+    addToTable({
+      sku: returned.sku,
+      lot: e.lot,
+      exp: e.exp || ""
+    });
+  });
+
+  localStorage.removeItem("lotExpReturn");
+}
+
+handleReturnedLotExp();
+
 </script>
 
 </body>

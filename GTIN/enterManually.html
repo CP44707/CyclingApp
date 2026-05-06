@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>Manual Entry</title>
+<title>Manual Entry Wizard</title>
 
 <style>
   body {
@@ -22,7 +22,7 @@
   input, select, button {
     width: 90%;
     font-size: 14px;
-    padding: 6px;
+    padding: 8px;
     margin-top: 4px;
     text-align: center;
   }
@@ -31,6 +31,24 @@
     background: #333;
     color: white;
     border: none;
+  }
+
+  #suggestions {
+    width: 90%;
+    background: #222;
+    max-height: 80px;
+    overflow-y: auto;
+    font-size: 12px;
+  }
+
+  .suggestion {
+    padding: 4px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+  }
+
+  .suggestion:hover {
+    background: #444;
   }
 
   table {
@@ -45,21 +63,34 @@
     padding: 4px;
     text-align: center;
   }
+
+  .hidden { display: none; }
 </style>
 </head>
 
 <body>
 
-<input id="skuInput" placeholder="Enter SKU" />
-<input id="lotInput" placeholder="Enter LOT" />
-<input id="qtyInput" placeholder="Quantity" type="number" value="1" min="1"/>
+<div id="stepSku">
+  <input id="skuSearch" placeholder="Search SKU..." />
+  <div id="suggestions"></div>
+</div>
 
-<!-- EXP DATE PICKERS -->
-<select id="yearSelect"></select>
-<select id="monthSelect"></select>
-<select id="daySelect"></select>
+<div id="stepLot" class="hidden">
+  <input id="lotInput" placeholder="Enter LOT" />
+</div>
 
-<button id="addBtn">Add Item</button>
+<div id="stepExp" class="hidden">
+  <select id="yearSelect"></select>
+  <select id="monthSelect"></select>
+  <select id="daySelect"></select>
+  <button id="skipExp">Skip Exp</button>
+</div>
+
+<div id="stepQty" class="hidden">
+  <input id="qtyInput" type="number" value="1" min="1" />
+</div>
+
+<button id="addBtn" class="hidden">Add Item</button>
 
 <table>
   <thead>
@@ -80,63 +111,152 @@
 // ========================
 // STATE
 // ========================
-let skuMap = {};
+let skuMap = {}; // SKU list
+let selectedSKU = "";
 let entries = [];
+let current = {};
 
 // ========================
-// LOAD CSV (for SKU validation)
+// LOAD CSV (SKU list)
 // ========================
 async function loadCSV() {
   const res = await fetch(CONFIG.CSV_URL + "?t=" + Date.now(), { cache: "no-store" });
   const text = await res.text();
 
+  skuMap = {};
+
   text.split("\n").slice(1).forEach(line => {
     const cols = line.split(",");
     const sku = cols[0]?.trim();
-    const gtin = cols[1]?.replace(/\D/g, "").slice(-14);
-
     if (sku) skuMap[sku] = true;
   });
 }
 
 // ========================
-// EXP DROPDOWNS
+// SKU SEARCH
 // ========================
-function initDatePickers() {
-  const year = document.getElementById("yearSelect");
-  const month = document.getElementById("monthSelect");
-  const day = document.getElementById("daySelect");
+const skuSearch = document.getElementById("skuSearch");
+const suggestions = document.getElementById("suggestions");
 
-  year.innerHTML = `<option value="">Year</option>`;
-  month.innerHTML = `<option value="">Month</option>`;
-  day.innerHTML = `<option value="">Day</option>`;
+skuSearch.addEventListener("input", () => {
+  const val = skuSearch.value.toUpperCase();
+  suggestions.innerHTML = "";
 
+  if (!val) return;
+
+  Object.keys(skuMap)
+    .filter(sku => sku.includes(val))
+    .slice(0, 6)
+    .forEach(sku => {
+      const div = document.createElement("div");
+      div.className = "suggestion";
+      div.textContent = sku;
+
+      div.onclick = () => {
+        selectedSKU = sku;
+        skuSearch.value = sku;
+        suggestions.innerHTML = "";
+        nextStep("lot");
+      };
+
+      suggestions.appendChild(div);
+    });
+});
+
+// ========================
+// STEP CONTROL
+// ========================
+function nextStep(step) {
+  document.getElementById("stepSku").classList.add("hidden");
+  document.getElementById("stepLot").classList.add("hidden");
+  document.getElementById("stepExp").classList.add("hidden");
+  document.getElementById("stepQty").classList.add("hidden");
+  document.getElementById("addBtn").classList.add("hidden");
+
+  if (step === "lot") document.getElementById("stepLot").classList.remove("hidden");
+  if (step === "exp") document.getElementById("stepExp").classList.remove("hidden");
+  if (step === "qty") document.getElementById("stepQty").classList.remove("hidden");
+  if (step === "add") document.getElementById("addBtn").classList.remove("hidden");
+}
+
+// ========================
+// LOT → EXP → QTY FLOW
+// ========================
+document.getElementById("lotInput").addEventListener("change", () => {
+  current.lot = document.getElementById("lotInput").value.trim();
+  nextStep("exp");
+});
+
+// EXP SETUP
+const y = document.getElementById("yearSelect");
+const m = document.getElementById("monthSelect");
+const d = document.getElementById("daySelect");
+
+function initDates() {
   const now = new Date();
-  const currentYear = now.getFullYear();
 
-  for (let y = currentYear; y <= currentYear + 10; y++) {
-    year.innerHTML += `<option value="${y}">${y}</option>`;
+  for (let i = now.getFullYear(); i <= now.getFullYear() + 10; i++) {
+    y.innerHTML += `<option value="${i}">${i}</option>`;
   }
 
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  months.forEach((m, i) => {
-    month.innerHTML += `<option value="${i+1}">${m}</option>`;
+  months.forEach((mm, i) => {
+    m.innerHTML += `<option value="${i+1}">${mm}</option>`;
   });
 
-  for (let d = 1; d <= 31; d++) {
-    day.innerHTML += `<option value="${d}">${d}</option>`;
+  for (let i = 1; i <= 31; i++) {
+    d.innerHTML += `<option value="${i}">${i}</option>`;
   }
 }
 
-// ========================
-// FORMAT EXP
-// ========================
-function formatExp(y, m, d) {
-  if (!y || !m || !d) return "";
+document.getElementById("skipExp").onclick = () => {
+  current.exp = "";
+  nextStep("qty");
+};
 
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${String(d).padStart(2,"0")}-${months[m-1]}-${String(y).slice(2)}`;
-}
+y.onchange = m.onchange = d.onchange = () => {
+  if (y.value && m.value && d.value) {
+    current.exp = `${y.value}-${m.value}-${d.value}`;
+    nextStep("qty");
+  }
+};
+
+// ========================
+// QTY
+// ========================
+document.getElementById("qtyInput").addEventListener("change", () => {
+  nextStep("add");
+});
+
+// ========================
+// ADD
+// ========================
+document.getElementById("addBtn").onclick = () => {
+  const qty = parseInt(document.getElementById("qtyInput").value || "1");
+
+  const existing = entries.find(e =>
+    e.lot === current.lot && e.exp === current.exp
+  );
+
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    entries.push({
+      sku: selectedSKU,
+      lot: current.lot,
+      exp: current.exp,
+      qty
+    });
+  }
+
+  render();
+
+  // reset flow
+  document.getElementById("lotInput").value = "";
+  document.getElementById("qtyInput").value = "1";
+  current = {};
+  nextStep("lot");
+};
 
 // ========================
 // TABLE
@@ -150,7 +270,7 @@ function render() {
 
     row.innerHTML = `
       <td>${e.lot}</td>
-      <td>${e.exp}</td>
+      <td>${e.exp || ""}</td>
       <td>${e.qty}</td>
     `;
 
@@ -159,60 +279,23 @@ function render() {
 }
 
 // ========================
-// ADD ITEM
-// ========================
-document.getElementById("addBtn").addEventListener("click", () => {
-  const sku = document.getElementById("skuInput").value.trim();
-  const lot = document.getElementById("lotInput").value.trim();
-  const qty = parseInt(document.getElementById("qtyInput").value || "1");
-
-  const y = document.getElementById("yearSelect").value;
-  const m = document.getElementById("monthSelect").value;
-  const d = document.getElementById("daySelect").value;
-
-  if (!skuMap[sku]) {
-    alert("SKU not found");
-    return;
-  }
-
-  if (!lot) {
-    alert("LOT required");
-    return;
-  }
-
-  const exp = formatExp(y, m, d);
-
-  const existing = entries.find(e => e.lot === lot && e.exp === exp);
-
-  if (existing) {
-    existing.qty += qty;
-  } else {
-    entries.push({ sku, lot, exp, qty });
-  }
-
-  render();
-});
-
-// ========================
 // SEND BACK
 // ========================
-document.getElementById("sendBtn").addEventListener("click", () => {
-
-  const payload = {
-    sku: document.getElementById("skuInput").value.trim(),
+document.getElementById("sendBtn").onclick = () => {
+  localStorage.setItem("lotExpReturn", JSON.stringify({
+    sku: selectedSKU,
     entries
-  };
-
-  localStorage.setItem("lotExpReturn", JSON.stringify(payload));
+  }));
 
   window.location.href = "scanner.html";
-});
+};
 
 // ========================
 // INIT
 // ========================
 loadCSV();
-initDatePickers();
+initDates();
+nextStep("sku");
 
 </script>
 

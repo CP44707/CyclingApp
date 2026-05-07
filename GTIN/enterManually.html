@@ -277,26 +277,76 @@ const yearSelect = document.getElementById("yearSelect");
 const monthSelect = document.getElementById("monthSelect");
 const daySelect = document.getElementById("daySelect");
 
+// YEARS
 for (let y = 2024; y <= 2045; y++) {
   const opt = document.createElement("option");
+
   opt.value = String(y).slice(2);
   opt.textContent = y;
+
   yearSelect.appendChild(opt);
 }
 
+// MONTHS
 for (let m = 1; m <= 12; m++) {
   const opt = document.createElement("option");
+
   opt.value = String(m).padStart(2, "0");
   opt.textContent = String(m).padStart(2, "0");
+
   monthSelect.appendChild(opt);
 }
 
-for (let d = 1; d <= 31; d++) {
-  const opt = document.createElement("option");
-  opt.value = String(d).padStart(2, "0");
-  opt.textContent = String(d).padStart(2, "0");
-  daySelect.appendChild(opt);
+// LEAP YEAR CHECK
+function isLeapYear(fullYear) {
+  return (
+    (fullYear % 4 === 0 && fullYear % 100 !== 0) ||
+    fullYear % 400 === 0
+  );
 }
+
+// UPDATE VALID DAYS
+function updateDays() {
+
+  const fullYear = parseInt("20" + yearSelect.value);
+  const month = parseInt(monthSelect.value);
+
+  let maxDays = 31;
+
+  if ([4, 6, 9, 11].includes(month)) {
+    maxDays = 30;
+  }
+
+  if (month === 2) {
+    maxDays = isLeapYear(fullYear) ? 29 : 28;
+  }
+
+  const currentDay = daySelect.value;
+
+  daySelect.innerHTML = "";
+
+  for (let d = 1; d <= maxDays; d++) {
+
+    const opt = document.createElement("option");
+
+    opt.value = String(d).padStart(2, "0");
+    opt.textContent = String(d).padStart(2, "0");
+
+    daySelect.appendChild(opt);
+  }
+
+  // preserve selection if still valid
+  if (parseInt(currentDay) <= maxDays) {
+    daySelect.value = currentDay;
+  }
+}
+
+// INITIALIZE
+updateDays();
+
+// AUTO-UPDATE WHEN YEAR/MONTH CHANGES
+yearSelect.addEventListener("change", updateDays);
+monthSelect.addEventListener("change", updateDays);
 
 // ========================
 // NO EXP

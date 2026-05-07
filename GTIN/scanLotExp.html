@@ -67,7 +67,9 @@
 <div id="skuHeader">SKU: ...</div>
 
 <input id="scanInput" autofocus placeholder="Scan LOT / EXP..." />
+<button id="noLotBtn">Add NO LOT</button>
 <button id="sendBtn">Send Back to Scanner</button>
+
 
 <table>
   <thead>
@@ -253,6 +255,16 @@ document.getElementById("sendBtn").addEventListener("click", () => {
   localStorage.setItem("lotExpReturn", JSON.stringify(payload));
 
   window.location.href = "scanner.html";
+});
+
+document.getElementById("noLotBtn").addEventListener("click", () => {
+
+  addEntry("NO LOT", "");
+
+  beep(880);
+
+  input.value = "";
+  buffer = "";
 });
 
 </script>

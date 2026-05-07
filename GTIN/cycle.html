@@ -75,21 +75,25 @@ function beep(freq) {
 }
 
 // --------------------
-// DATE FORMAT (ADDED)
+// DATE FORMAT (UPDATED FOR YYMMDD)
 // --------------------
 function formatDate(input) {
   if (!input) return "";
 
-  const date = new Date(input);
-  if (isNaN(date.getTime())) return input;
+  const s = String(input).trim();
 
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  // expects yymmdd (e.g. 270123)
+  if (s.length === 6 && /^\d+$/.test(s)) {
+    const yy = s.slice(0, 2);
+    const mm = s.slice(2, 4);
+    const dd = s.slice(4, 6);
 
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = months[date.getMonth()];
-  const year = String(date.getFullYear()).slice(-2);
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  return `${day}-${month}-${year}`;
+    return `${dd}-${months[Number(mm) - 1]}-${yy}`;
+  }
+
+  return input;
 }
 
 // --------------------

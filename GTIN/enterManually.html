@@ -44,7 +44,7 @@
     background: #333;
   }
 
-  input, button {
+  button, select, input {
     width: 90%;
     font-size: 14px;
     padding: 8px;
@@ -71,24 +71,38 @@
     text-align: center;
   }
 
-  #lot, #exp, #qty, #addBtn {
+  tr:hover {
+    background: #222;
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
     display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+  }
+
+  .modalContent {
+    width: 90%;
+    background: #1b1b1b;
+    padding: 10px;
+    border: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 </style>
 </head>
 
 <body>
 
-<!-- SKU SEARCH (EXACT ASSIGN STYLE) -->
 <input id="search" placeholder="Search SKU..." />
 <div id="results"></div>
 
-<!-- STEP INPUTS -->
-<input id="lot" placeholder="LOT" />
-<input id="exp" placeholder="EXP (optional)" />
-<input id="qty" type="number" value="1" min="1" />
-
-<button id="addBtn">Add</button>
 <button id="sendBtn">Send to Scanner</button>
 
 <table>
@@ -102,6 +116,36 @@
   <tbody id="tbody"></tbody>
 </table>
 
+<!-- LOT MODAL -->
+<div class="modal" id="lotModal">
+  <div class="modalContent">
+    <input id="lotInput" placeholder="Enter LOT" />
+    <button id="lotNext">Next</button>
+  </div>
+</div>
+
+<!-- EXP MODAL -->
+<div class="modal" id="expModal">
+  <div class="modalContent">
+
+    <button id="noExpBtn">No Expiry</button>
+
+    <select id="yearSelect"></select>
+    <select id="monthSelect"></select>
+    <select id="daySelect"></select>
+
+    <button id="expNext">Next</button>
+  </div>
+</div>
+
+<!-- QTY MODAL -->
+<div class="modal" id="qtyModal">
+  <div class="modalContent">
+    <input id="qtyInput" type="number" min="1" value="1" />
+    <button id="qtyAdd">Add</button>
+  </div>
+</div>
+
 <script src="config.js"></script>
 
 <script>
@@ -112,20 +156,39 @@ let allSKUs = [];
 let selectedSKU = null;
 let entries = [];
 
+let currentLot = "";
+let currentExp = "";
+
 // ========================
 // BEEP
 // ========================
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
 function beep(freq) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
+  const o = audioCtx.createOscillator();
   o.frequency.value = freq;
-  o.connect(ctx.destination);
+  o.connect(audioCtx.destination);
   o.start();
   setTimeout(() => o.stop(), 100);
 }
 
 // ========================
-// LOAD CSV (Item column = SKU)
+// FORMAT EXP
+// ========================
+function formatExp(exp) {
+  if (!exp || exp.length !== 6) return exp;
+
+  const year = "20" + exp.slice(0,2);
+  const month = parseInt(exp.slice(2,4), 10) - 1;
+  const day = exp.slice(4,6);
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return `${day}-${months[month]}-${year.slice(2)}`;
+}
+
+// ========================
+// LOAD CSV
 // ========================
 async function loadSKUs() {
   const cacheBuster = localStorage.getItem("skuMapUpdatedAt") || Date.now();
@@ -142,6 +205,7 @@ async function loadSKUs() {
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",");
     const sku = (cols[itemIndex] || "").trim();
+
     if (sku) allSKUs.push(sku);
   }
 }
@@ -149,13 +213,15 @@ async function loadSKUs() {
 loadSKUs();
 
 // ========================
-// SKU SEARCH (YOUR EXACT STYLE)
+// SKU SEARCH
 // ========================
 const search = document.getElementById("search");
 const results = document.getElementById("results");
 
 search.addEventListener("input", () => {
+
   const q = search.value.toLowerCase();
+
   results.innerHTML = "";
   selectedSKU = null;
 
@@ -166,17 +232,25 @@ search.addEventListener("input", () => {
     .slice(0, 10);
 
   matches.forEach(sku => {
+
     const div = document.createElement("div");
+
     div.className = "item";
     div.textContent = sku;
 
     div.onclick = () => {
+
       selectedSKU = sku;
+
       search.value = sku;
+
       results.innerHTML = "";
+
       beep(880);
 
-      document.getElementById("lot").style.display = "block";
+      document.getElementById("lotModal").style.display = "flex";
+
+      document.getElementById("lotInput").focus();
     };
 
     results.appendChild(div);
@@ -184,75 +258,120 @@ search.addEventListener("input", () => {
 });
 
 // ========================
-// STEP FLOW
+// LOT FLOW
 // ========================
-const lot = document.getElementById("lot");
-const exp = document.getElementById("exp");
-const qty = document.getElementById("qty");
+document.getElementById("lotNext").onclick = () => {
 
-lot.addEventListener("change", () => {
-  exp.style.display = "block";
-});
+  currentLot = document.getElementById("lotInput").value.trim();
 
-exp.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    qty.style.display = "block";
-    document.getElementById("addBtn").style.display = "block";
-  }
-});
+  if (!currentLot) return;
+
+  document.getElementById("lotModal").style.display = "none";
+  document.getElementById("expModal").style.display = "flex";
+};
 
 // ========================
-// ADD ITEM
+// EXP DROPDOWNS
 // ========================
-document.getElementById("addBtn").onclick = () => {
-  if (!selectedSKU) return;
+const yearSelect = document.getElementById("yearSelect");
+const monthSelect = document.getElementById("monthSelect");
+const daySelect = document.getElementById("daySelect");
 
-  const lotVal = lot.value.trim();
-  const expVal = exp.value.trim();
-  const qtyVal = parseInt(qty.value || "1");
+for (let y = 2024; y <= 2045; y++) {
+  const opt = document.createElement("option");
+  opt.value = String(y).slice(2);
+  opt.textContent = y;
+  yearSelect.appendChild(opt);
+}
 
-  const key = `${lotVal}_${expVal}`;
+for (let m = 1; m <= 12; m++) {
+  const opt = document.createElement("option");
+  opt.value = String(m).padStart(2, "0");
+  opt.textContent = String(m).padStart(2, "0");
+  monthSelect.appendChild(opt);
+}
+
+for (let d = 1; d <= 31; d++) {
+  const opt = document.createElement("option");
+  opt.value = String(d).padStart(2, "0");
+  opt.textContent = String(d).padStart(2, "0");
+  daySelect.appendChild(opt);
+}
+
+// ========================
+// NO EXP
+// ========================
+document.getElementById("noExpBtn").onclick = () => {
+
+  currentExp = "";
+
+  document.getElementById("expModal").style.display = "none";
+  document.getElementById("qtyModal").style.display = "flex";
+};
+
+// ========================
+// EXP NEXT
+// ========================
+document.getElementById("expNext").onclick = () => {
+
+  currentExp =
+    yearSelect.value +
+    monthSelect.value +
+    daySelect.value;
+
+  document.getElementById("expModal").style.display = "none";
+  document.getElementById("qtyModal").style.display = "flex";
+};
+
+// ========================
+// ADD ENTRY
+// ========================
+document.getElementById("qtyAdd").onclick = () => {
+
+  const qty = parseInt(document.getElementById("qtyInput").value || "1");
+
+  const key = currentLot + "_" + currentExp;
 
   const existing = entries.find(e => e.key === key);
 
   if (existing) {
-    existing.qty += qtyVal;
+    existing.qty += qty;
   } else {
     entries.push({
       key,
       sku: selectedSKU,
-      lot: lotVal,
-      exp: expVal,
-      qty: qtyVal
+      lot: currentLot,
+      exp: currentExp,
+      qty
     });
   }
 
   render();
 
-  lot.value = "";
-  exp.value = "";
-  qty.value = "1";
+  beep(880);
 
-  exp.style.display = "none";
-  qty.style.display = "none";
-  document.getElementById("addBtn").style.display = "none";
+  document.getElementById("qtyModal").style.display = "none";
 
-  lot.style.display = "block";
+  document.getElementById("lotInput").value = "";
+  document.getElementById("qtyInput").value = "1";
 };
 
 // ========================
 // TABLE
 // ========================
 function render() {
+
   const tbody = document.getElementById("tbody");
+
   tbody.innerHTML = "";
 
   entries.forEach(e => {
+
     const row = document.createElement("tr");
 
     row.innerHTML = `
       <td>${e.lot}</td>
-      <td>${e.exp}</td>
+      <td>${formatExp(e.exp)}</td>
       <td>${e.qty}</td>
     `;
 
@@ -264,6 +383,7 @@ function render() {
 // SEND BACK
 // ========================
 document.getElementById("sendBtn").onclick = () => {
+
   localStorage.setItem("lotExpReturn", JSON.stringify({
     sku: selectedSKU,
     entries
@@ -271,7 +391,6 @@ document.getElementById("sendBtn").onclick = () => {
 
   window.location.href = "scanner.html";
 };
-
 </script>
 
 </body>

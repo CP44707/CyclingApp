@@ -61,6 +61,7 @@
 
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
 <button id="manualBtn">Manual Entry</button>
+<button id="clearBtn">Clear Table</button>
 
 <div id="status"></div>
 
@@ -71,6 +72,7 @@
       <th>Lot</th>
       <th>Exp</th>
       <th>Qty</th>
+      <th>Del</th>
     </tr>
   </thead>
   <tbody id="tbody"></tbody>
@@ -83,6 +85,7 @@ const input = document.getElementById("scanInput");
 const status = document.getElementById("status");
 const tbody = document.getElementById("tbody");
 const manualBtn = document.getElementById("manualBtn");
+const clearBtn = document.getElementById("clearBtn");
 
 let currentEntry = { gtin: null, lot: null, exp: null, sku: null };
 let skuMap = {};
@@ -94,6 +97,12 @@ let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 
 manualBtn.addEventListener("click", () => {
   window.location.href = "enterManually.html";
+});
+
+clearBtn.addEventListener("click", () => {
+  scannedItems = [];
+  saveTable();
+  renderTable();
 });
 
 function saveTable() {
@@ -273,6 +282,12 @@ function addToTable(item) {
   renderTable();
 }
 
+function deleteRow(index) {
+  scannedItems.splice(index, 1);
+  saveTable();
+  renderTable();
+}
+
 function renderTable() {
   tbody.innerHTML = "";
 
@@ -284,6 +299,11 @@ function renderTable() {
       <td>${item.lot}</td>
       <td>${formatExp(item.exp)}</td>
       <td>${item.qty}</td>
+      <td>
+        <button onclick="deleteRow(${index})" style="width:auto;padding:2px 6px;font-size:12px;">
+          X
+        </button>
+      </td>
     `;
 
     tbody.appendChild(row);

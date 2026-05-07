@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Picking</title>
+<title>Pick Submit</title>
 
 <style>
   body {
@@ -22,7 +22,7 @@
     width: 90%;
     font-size: 16px;
     padding: 8px;
-    margin-top: 4px;
+    margin-top: 6px;
     text-align: center;
   }
 
@@ -32,70 +32,118 @@
     border: none;
   }
 
-  table {
-    width: 95%;
+  #status {
     font-size: 12px;
-    border-collapse: collapse;
-  }
-
-  td {
-    border-bottom: 1px solid #444;
-    padding: 4px;
-    text-align: center;
+    margin-top: 6px;
+    color: orange;
   }
 </style>
 </head>
 
 <body>
 
-<input id="scanInput" placeholder="Scan..." autofocus />
-<button id="clearBtn">Clear Table</button>
+<input id="soInput" placeholder="Enter SO Number" />
 
-<table>
-  <tbody id="tbody"></tbody>
-</table>
+<button id="submitBtn">Submit Picking</button>
+
+<div id="status"></div>
+
+<script src="config.js"></script>
 
 <script>
-const tbody = document.getElementById("tbody");
-const input = document.getElementById("scanInput");
 
-let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+const soInput = document.getElementById("soInput");
+const status = document.getElementById("status");
 
-function save() {
-  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
+// --------------------
+// LOAD TABLE
+// --------------------
+let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+// --------------------
+// FULFILLMENT ID
+// --------------------
+const fulfillmentId = localStorage.getItem("fulfillmentId") || crypto.randomUUID();
+localStorage.setItem("fulfillmentId", fulfillmentId);
+
+// --------------------
+// FORMAT EXP (YYMMDD → YYYY-MM-DD)
+// --------------------
+function formatDate(input) {
+  if (!input) return "";
+
+  const s = String(input).trim();
+
+  if (s.length === 6 && /^\d+$/.test(s)) {
+    const yy = s.slice(0,2);
+    const mm = s.slice(2,4);
+    const dd = s.slice(4,6);
+
+    return `20${yy}-${mm}-${dd}`;
+  }
+
+  return input;
 }
 
-function render() {
-  tbody.innerHTML = "";
+// --------------------
+// SUBMIT
+// --------------------
+document.getElementById("submitBtn").onclick = async () => {
 
-  scannedItems.forEach((item, index) => {
-    const row = document.createElement("tr");
+  const so = soInput.value.trim();
 
-    row.innerHTML = `
-      <td>${item.sku}</td>
-      <td>${item.lot}</td>
-      <td>${item.exp}</td>
-      <td>${item.qty}</td>
-      <td><button onclick="del(${index})">X</button></td>
-    `;
+  if (!so) {
+    status.textContent = "Enter SO number";
+    return;
+  }
 
-    tbody.appendChild(row);
-  });
-}
+  if (!table.length) {
+    status.textContent = "No data in table";
+    return;
+  }
 
-function del(i) {
-  scannedItems.splice(i, 1);
-  save();
-  render();
-}
+  status.textContent = "Sending...";
 
-document.getElementById("clearBtn").onclick = () => {
-  scannedItems = [];
-  save();
-  render();
+  try {
+
+    for (let item of table) {
+
+      const payload = {
+        fulfillmentId: fulfillmentId,
+        timestamp: new Date().toISOString(),
+        so: so,
+        sku: item.sku,
+        lot: item.lot,
+        exp: formatDate(item.exp),
+        qty: item.qty
+      };
+
+      await fetch(CONFIG.PICK_URL, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+    }
+
+    status.textContent = "Submitted";
+
+    localStorage.removeItem("cycleTable");
+    localStorage.removeItem("fulfillmentId");
+
+    setTimeout(() => {
+      window.location.href = "scanner.html";
+    }, 500);
+
+  } catch (err) {
+    console.log(err);
+    status.textContent = "Error submitting";
+  }
 };
 
-render();
 </script>
 
 </body>

@@ -137,15 +137,18 @@ function formatReceiptTime(dateStr) {
 // EXPIRATION FORMAT
 // ----------------------
 function formatExpiry(dateStr) {
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
 
-  const day = String(d.getDate()).padStart(2,"0");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const mon = months[d.getMonth()];
-  const yr = String(d.getFullYear()).slice(-2);
+  if (!dateStr) return "";
 
-  return `${day}-${mon}-${yr}`;
+  // expected: YYYY-MM-DD
+  const [year, month, day] = dateStr.split("-");
+
+  const months = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
+
+  return `${day}-${months[Number(month) - 1]}-${year.slice(-2)}`;
 }
 
 // ----------------------

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Fulfillment Viewer</title>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="config.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: rgb(0,0,0);
+  color: rgb(255,224,0);
+  padding: 20px;
+}
+
+h2 {
+  text-align: center;
+}
+
+button {
+  background: rgb(255,224,0);
+  color: black;
+  border: none;
+  padding: 12px 14px;
+  margin: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  filter: brightness(0.9);
+}
+
+#receiptList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  border: 1px solid rgb(255,224,0);
+  padding: 10px;
+  text-align: center;
+}
+
+th {
+  background: rgb(255,224,0);
+  color: black;
+}
+
+.copyBtn {
+  margin-left: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Fulfillment History</h2>
+
+<div id="receiptList"></div>
+
+<div id="detail" class="hidden">
+  <h3 id="title"></h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Lot</th>
+        <th>Expiration</th>
+        <th>Qty</th>
+      </tr>
+    </thead>
+    <tbody id="body"></tbody>
+  </table>
+</div>
+
+<script>
+
+// ----------------------
+// CSV SOURCE (ONLY CHANGE)
+// ----------------------
+const SHEET_CSV_URL = CONFIG.PICK_CSV;
+
+let rawData = [];
+let receipts = [];
+
+// ----------------------
+// COPY
+// ----------------------
+function copy(v) {
+  navigator.clipboard.writeText(v || "");
+}
+
+// ----------------------
+// RECEIPT TIME FORMAT
+// ----------------------
+function formatReceiptTime(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const month = months[d.getMonth()];
+  const day = d.getDate();
+
+  let hour = d.getHours();
+  const min = String(d.getMinutes()).padStart(2,"0");
+
+  const ampm = hour >= 12 ? "pm" : "am";
+  hour = hour % 12 || 12;
+
+  return `${month} ${day}, ${hour}:${min}${ampm}`;
+}
+
+// ----------------------
+// EXPIRATION FORMAT
+// ----------------------
+function formatExpiry(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+
+  const day = String(d.getDate()).padStart(2,"0");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const mon = months[d.getMonth()];
+  const yr = String(d.getFullYear()).slice(-2);
+
+  return `${day}-${mon}-${yr}`;
+}
+
+// ----------------------
+// ROUND TO 1 MIN WINDOW
+// ----------------------
+function roundMinute(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+
+  d.setSeconds(0, 0);
+  return d.toISOString();
+}
+
+// ----------------------
+// LOAD CSV (CACHE SAFE)
+// ----------------------
+async function load() {
+
+  const url =
+    SHEET_CSV_URL +
+    (SHEET_CSV_URL.includes("?") ? "&" : "?") +
+    "t=" +
+    Date.now();
+
+  const res = await fetch(url, {
+    cache: "no-store"
+  });
+
+  const text = await res.text();
+
+  const parsed = Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true
+  });
+
+  rawData = parsed.data;
+
+  buildReceipts();
+}
+
+load();
+
+// ----------------------
+// GROUP RECEIPTS
+// ----------------------
+function buildReceipts() {
+
+  const map = {};
+
+  rawData.forEach(r => {
+
+    const so = (r.SO || "").trim();
+    const ts = roundMinute(r.Timestamp);
+
+    if (!so || !ts) return;
+
+    const key = so + "|" + ts;
+
+    if (!map[key]) {
+      map[key] = {
+        so,
+        timestamp: ts,
+        rows: []
+      };
+    }
+
+    map[key].rows.push(r);
+  });
+
+  receipts = Object.values(map)
+    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 10);
+
+  renderButtons();
+}
+
+// ----------------------
+// RECEIPT BUTTONS
+// ----------------------
+function renderButtons() {
+
+  const div = document.getElementById("receiptList");
+  div.innerHTML = "";
+
+  receipts.forEach(r => {
+
+    const label = `${r.so} — ${formatReceiptTime(r.timestamp)}`;
+
+    const btn = document.createElement("button");
+    btn.innerText = label;
+    btn.onclick = () => openReceipt(r);
+
+    div.appendChild(btn);
+  });
+}
+
+// ----------------------
+// COPY CELL
+// ----------------------
+function cell(val) {
+  const safe = val ?? "";
+
+  return `
+    <div style="display:flex;justify-content:center;align-items:center;gap:6px;">
+      <span>${safe}</span>
+      <button class="copyBtn" onclick="copy('${String(safe).replace(/'/g,"\\'")}')">Copy</button>
+    </div>
+  `;
+}
+
+// ----------------------
+// OPEN RECEIPT
+// ----------------------
+function openReceipt(r) {
+
+  document.getElementById("detail").classList.remove("hidden");
+
+  document.getElementById("title").innerText =
+    `${r.so} — ${formatReceiptTime(r.timestamp)}`;
+
+  const body = document.getElementById("body");
+  body.innerHTML = "";
+
+  r.rows.forEach(x => {
+
+    body.innerHTML += `
+      <tr>
+        <td>${cell(x.SKU)}</td>
+        <td>${cell(x.Lot)}</td>
+        <td>${cell(formatExpiry(x["Expiration Date"]))}</td>
+        <td>${cell(x["Picked Qty"])}</td>
+      </tr>
+    `;
+  });
+}
+
+</script>
+
+</body>
+</html>

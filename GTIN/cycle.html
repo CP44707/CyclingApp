@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Cycle Count</title>
+<title>Cycle Submit</title>
 
 <style>
   body {
@@ -18,11 +18,11 @@
     align-items: center;
   }
 
-  input, button, select {
+  input, select, button {
     width: 90%;
     font-size: 16px;
     padding: 8px;
-    margin-top: 4px;
+    margin-top: 6px;
     text-align: center;
   }
 
@@ -42,8 +42,6 @@
 
 <body>
 
-<input id="scanInput" placeholder="Scan SKU / Barcode..." autofocus />
-
 <select id="warehouse">
   <option value="">Select Warehouse</option>
   <option value="AB">AB</option>
@@ -52,10 +50,6 @@
 
 <input id="binInput" placeholder="Enter Bin" />
 
-<input id="lotInput" placeholder="Lot" />
-<input id="expInput" placeholder="Expiration (YYMMDD)" />
-<input id="qtyInput" type="number" value="1" min="1" />
-
 <button id="submitBtn">Submit Cycle Count</button>
 
 <div id="status"></div>
@@ -63,12 +57,9 @@
 <script src="config.js"></script>
 
 <script>
-const scanInput = document.getElementById("scanInput");
+
 const warehouse = document.getElementById("warehouse");
 const binInput = document.getElementById("binInput");
-const lotInput = document.getElementById("lotInput");
-const expInput = document.getElementById("expInput");
-const qtyInput = document.getElementById("qtyInput");
 const status = document.getElementById("status");
 
 // --------------------
@@ -84,78 +75,71 @@ function beep(freq) {
 }
 
 // --------------------
-// SCAN (simple passthrough)
+// LOAD TABLE
 // --------------------
-scanInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    lotInput.focus();
-    beep(880);
-  }
-});
+let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 
 // --------------------
-// SUBMIT TO SHEET
+// SUBMIT ALL ROWS
 // --------------------
 document.getElementById("submitBtn").onclick = async () => {
 
-  const payload = {
-    cycle: "Cycle Count",
-    warehouse: warehouse.value,
-    bin: binInput.value.trim(),
-    sku: scanInput.value.trim(),
-    lot: lotInput.value.trim(),
-    exp: expInput.value.trim(),
-    qty: parseInt(qtyInput.value || "0", 10)
-  };
-
-  if (!payload.warehouse) {
+  if (!warehouse.value) {
     status.textContent = "Select warehouse";
     beep(150);
     return;
   }
 
-  if (!payload.bin) {
+  if (!binInput.value.trim()) {
     status.textContent = "Enter bin";
     beep(150);
     return;
   }
 
-  if (!payload.sku) {
-    status.textContent = "Scan SKU";
+  if (!table.length) {
+    status.textContent = "No data in table";
     beep(150);
     return;
   }
 
   try {
 
-    const res = await fetch(CONFIG.CYCLE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+    const requests = table.map(item => {
+
+      return fetch(CONFIG.CYCLE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cycle: "Cycle Count",
+          warehouse: warehouse.value,
+          bin: binInput.value.trim(),
+          sku: item.sku,
+          lot: item.lot,
+          exp: item.exp,
+          qty: item.qty
+        })
+      });
+
     });
 
-    const json = await res.json();
+    await Promise.all(requests);
 
-    if (json.status === "ok") {
+    status.textContent = "Submitted";
+    beep(880);
 
-      status.textContent = "Saved";
-      beep(880);
+    // clear after successful submit
+    localStorage.removeItem("cycleTable");
 
-      scanInput.value = "";
-      lotInput.value = "";
-      expInput.value = "";
-      qtyInput.value = "1";
-
-      scanInput.focus();
-    } else {
-      throw new Error(json.message);
-    }
+    setTimeout(() => {
+      window.location.href = "scanner.html";
+    }, 500);
 
   } catch (err) {
-    status.textContent = "Error saving";
+    status.textContent = "Error submitting";
     beep(150);
   }
 };
+
 </script>
 
 </body>

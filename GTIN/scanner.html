@@ -288,6 +288,60 @@ function deleteRow(index) {
   renderTable();
 }
 
+function editLot(index) {
+
+  const value = prompt("Edit LOT", scannedItems[index].lot);
+
+  if (value === null) return;
+
+  scannedItems[index].lot = value.trim();
+
+  scannedItems[index].key =
+    `${scannedItems[index].sku}_${scannedItems[index].lot}_${scannedItems[index].exp}`;
+
+  saveTable();
+  renderTable();
+
+  input.focus();
+}
+
+function editExp(index) {
+
+  const current = scannedItems[index].exp || "";
+
+  let yy = "";
+  let mm = "";
+  let dd = "";
+
+  if (current.length === 6) {
+    yy = current.slice(0,2);
+    mm = current.slice(2,4);
+    dd = current.slice(4,6);
+  }
+
+  const year = prompt("Year (YY)", yy);
+  if (year === null) return;
+
+  const month = prompt("Month (MM)", mm);
+  if (month === null) return;
+
+  const day = prompt("Day (DD)", dd);
+  if (day === null) return;
+
+  scannedItems[index].exp =
+    year.padStart(2,"0") +
+    month.padStart(2,"0") +
+    day.padStart(2,"0");
+
+  scannedItems[index].key =
+    `${scannedItems[index].sku}_${scannedItems[index].lot}_${scannedItems[index].exp}`;
+
+  saveTable();
+  renderTable();
+
+  input.focus();
+}
+
 function renderTable() {
   tbody.innerHTML = "";
 

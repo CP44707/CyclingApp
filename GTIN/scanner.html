@@ -296,9 +296,25 @@ function renderTable() {
 
     row.innerHTML = `
       <td>${item.sku}</td>
-      <td>${item.lot}</td>
-      <td>${formatExp(item.exp)}</td>
+
+      <td>
+        <input
+          value="${item.lot}"
+          style="width:90%;font-size:12px;padding:2px;"
+          onchange="updateLot(${index}, this.value)"
+        />
+      </td>
+
+      <td>
+        <input
+          value="${item.exp}"
+          style="width:90%;font-size:12px;padding:2px;"
+          onchange="updateExp(${index}, this.value)"
+        />
+      </td>
+
       <td>${item.qty}</td>
+
       <td>
         <button onclick="deleteRow(${index})" style="width:auto;padding:2px 6px;font-size:12px;">
           X

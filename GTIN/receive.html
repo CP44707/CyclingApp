@@ -18,7 +18,7 @@
     align-items: center;
   }
 
-  input, select, button {
+  input, button {
     width: 90%;
     font-size: 16px;
     padding: 8px;
@@ -56,37 +56,6 @@ const poInput = document.getElementById("poInput");
 const status = document.getElementById("status");
 
 // --------------------
-// BEEP
-// --------------------
-function beep(freq) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
-  o.frequency.value = freq;
-  o.connect(ctx.destination);
-  o.start();
-  setTimeout(() => o.stop(), 100);
-}
-
-// --------------------
-// FORMAT EXP (YYMMDD -> YYYY-MM-DD)
-// --------------------
-function formatDate(input) {
-  if (!input) return "";
-
-  const s = String(input).trim();
-
-  if (s.length === 6 && /^\d+$/.test(s)) {
-    const yy = s.slice(0, 2);
-    const mm = s.slice(2, 4);
-    const dd = s.slice(4, 6);
-
-    return `20${yy}-${mm}-${dd}`;
-  }
-
-  return input;
-}
-
-// --------------------
 // LOAD TABLE
 // --------------------
 let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
@@ -98,7 +67,26 @@ const receiptId = localStorage.getItem("receiptId") || crypto.randomUUID();
 localStorage.setItem("receiptId", receiptId);
 
 // --------------------
-// SUBMIT
+// FORMAT EXP (YYMMDD → YYYY-MM-DD)
+// --------------------
+function formatDate(input) {
+  if (!input) return "";
+
+  const s = String(input).trim();
+
+  if (s.length === 6 && /^\d+$/.test(s)) {
+    const yy = s.slice(0,2);
+    const mm = s.slice(2,4);
+    const dd = s.slice(4,6);
+
+    return `20${yy}-${mm}-${dd}`;
+  }
+
+  return input;
+}
+
+// --------------------
+// SUBMIT (MATCHES YOUR WORKING STYLE)
 // --------------------
 document.getElementById("submitBtn").onclick = async () => {
 
@@ -106,46 +94,43 @@ document.getElementById("submitBtn").onclick = async () => {
 
   if (!po) {
     status.textContent = "Enter PO number";
-    beep(150);
     return;
   }
 
   if (!table.length) {
     status.textContent = "No data in table";
-    beep(150);
     return;
   }
 
+  status.textContent = "Sending...";
+
   try {
 
-    const timestamp = new Date().toISOString();
+    for (let item of table) {
 
-    const requests = table.map(item => {
+      const payload = {
+        receiptId: receiptId,
+        timestamp: new Date().toISOString(),
+        po: po,
+        session: "",
+        sku: item.sku,
+        lot: item.lot,
+        exp: formatDate(item.exp),
+        qty: item.qty
+      };
 
-      return fetch(RECEIVE_URL, {
+      await fetch(RECEIVE_URL, {
         method: "POST",
-        body: JSON.stringify({
-          receiptId: receiptId,
-          timestamp: timestamp,
-          po: po,
-          session: "",
-          sku: item.sku,
-          lot: item.lot,
-          exp: formatDate(item.exp),
-          qty: item.qty
-        }),
+        body: JSON.stringify(payload),
         mode: "no-cors",
         headers: {
           "Content-Type": "text/plain"
         }
       });
 
-    });
-
-    await Promise.all(requests);
+    }
 
     status.textContent = "Submitted";
-    beep(880);
 
     localStorage.removeItem("cycleTable");
     localStorage.removeItem("receiptId");
@@ -155,8 +140,8 @@ document.getElementById("submitBtn").onclick = async () => {
     }, 500);
 
   } catch (err) {
+    console.log(err);
     status.textContent = "Error submitting";
-    beep(150);
   }
 };
 

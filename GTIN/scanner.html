@@ -298,19 +298,21 @@ function renderTable() {
       <td>${item.sku}</td>
 
       <td>
-        <input
-          value="${item.lot}"
-          style="width:90%;font-size:12px;padding:2px;"
-          onchange="updateLot(${index}, this.value)"
-        />
+        <button
+          onclick="editLot(${index})"
+          style="width:auto;padding:2px 6px;font-size:12px;"
+        >
+          ${item.lot}
+        </button>
       </td>
 
       <td>
-        <input
-          value="${item.exp}"
-          style="width:90%;font-size:12px;padding:2px;"
-          onchange="updateExp(${index}, this.value)"
-        />
+        <button
+          onclick="editExp(${index})"
+          style="width:auto;padding:2px 6px;font-size:12px;"
+        >
+          ${formatExp(item.exp)}
+        </button>
       </td>
 
       <td>${item.qty}</td>

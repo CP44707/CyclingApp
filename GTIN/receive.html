@@ -86,7 +86,7 @@ function formatDate(input) {
 }
 
 // --------------------
-// SUBMIT (MATCHES YOUR WORKING STYLE)
+// SUBMIT
 // --------------------
 document.getElementById("submitBtn").onclick = async () => {
 
@@ -119,12 +119,12 @@ document.getElementById("submitBtn").onclick = async () => {
         qty: item.qty
       };
 
-      await fetch(RECEIVE_URL, {
+      await fetch(CONFIG.RECEIVE_URL, {
         method: "POST",
         body: JSON.stringify(payload),
         mode: "no-cors",
         headers: {
-          "Content-Type": "text/plain"
+          "Content-Type": "application/json"
         }
       });
 

@@ -3,65 +3,136 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Receiving</title>
+
+<title>Receiving Submit</title>
 
 <style>
-body{margin:0;width:3.75in;height:2.25in;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center}
-input,button{width:90%;padding:8px;font-size:16px;margin-top:4px;text-align:center}
-button{background:#333;color:#fff;border:none}
-table{width:95%;font-size:12px;border-collapse:collapse}
-td{border-bottom:1px solid #444;padding:4px;text-align:center}
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  button {
+    width: 90%;
+    font-size: 16px;
+    padding: 10px;
+    margin-top: 8px;
+    background: #333;
+    color: white;
+    border: none;
+  }
+
+  #status {
+    margin-top: 10px;
+    font-size: 13px;
+    color: orange;
+    text-align: center;
+  }
 </style>
 </head>
 
 <body>
 
-<input id="scanInput" autofocus placeholder="Scan..." />
-<button id="clearBtn">Clear Table</button>
+<button id="sendBtn">Send Receiving</button>
+<button onclick="window.location.href='scanner.html'">Back</button>
 
-<table>
-<tbody id="tbody"></tbody>
-</table>
+<div id="status"></div>
+
+<script src="config.js"></script>
 
 <script>
-let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
-const tbody = document.getElementById("tbody");
 
-function save() {
-  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
+const status = document.getElementById("status");
+
+// =========================
+// LOAD TABLE (same as scanner)
+// =========================
+let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+// =========================
+// RECEIPT ID (persistent per session)
+// =========================
+const receiptId = localStorage.getItem("receiptId") || crypto.randomUUID();
+localStorage.setItem("receiptId", receiptId);
+
+// =========================
+// PO + SESSION (optional fallback safety)
+// =========================
+const po = localStorage.getItem("poNumber") || "";
+const session = localStorage.getItem("receivingSession") || "";
+
+// =========================
+// FORMAT EXP (YYMMDD -> YYYY-MM-DD)
+// =========================
+function formatExp(exp) {
+  if (!exp || exp.length !== 6) return "";
+
+  const yy = exp.slice(0,2);
+  const mm = exp.slice(2,4);
+  const dd = exp.slice(4,6);
+
+  return `20${yy}-${mm}-${dd}`;
 }
 
-function render() {
-  tbody.innerHTML = "";
+// =========================
+// SEND
+// =========================
+document.getElementById("sendBtn").onclick = async () => {
 
-  scannedItems.forEach((item, i) => {
-    const row = document.createElement("tr");
+  if (!table.length) {
+    status.textContent = "No data to send";
+    return;
+  }
 
-    row.innerHTML = `
-      <td>${item.sku}</td>
-      <td>${item.lot}</td>
-      <td>${item.exp}</td>
-      <td>${item.qty}</td>
-      <td><button onclick="del(${i})">X</button></td>
-    `;
+  status.textContent = "Sending...";
 
-    tbody.appendChild(row);
-  });
-}
+  const timestamp = new Date().toISOString();
 
-function del(i) {
-  scannedItems.splice(i,1);
-  save();
-  render();
-}
+  try {
 
-document.getElementById("clearBtn").onclick = () => {
-  scannedItems = [];
-  save();
-  render();
+    const requests = table.map(item => {
+
+      return fetch(RECEIVE_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          receiptId: receiptId,
+          timestamp: timestamp,
+          po: po,
+          session: session,
+          sku: item.sku,
+          lot: item.lot,
+          exp: formatExp(item.exp),
+          qty: item.qty
+        }),
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain"
+        }
+      });
+
+    });
+
+    await Promise.all(requests);
+
+    status.textContent = "Sent successfully";
+
+    // cleanup (match your existing flow style)
+    localStorage.removeItem("cycleTable");
+    localStorage.removeItem("receiptId");
+
+  } catch (err) {
+    console.log(err);
+    status.textContent = "Send failed";
+  }
 };
 
-render();
 </script>
 
 </body>

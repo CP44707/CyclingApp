@@ -3,64 +3,159 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Cycling</title>
+<title>Cycle Count</title>
+
 <style>
-body{margin:0;width:3.75in;height:2.25in;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center}
-input,button{width:90%;padding:8px;font-size:16px;margin-top:4px;text-align:center}
-button{background:#333;color:#fff;border:none}
-table{width:95%;font-size:12px;border-collapse:collapse}
-td{border-bottom:1px solid #444;padding:4px;text-align:center}
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  input, button, select {
+    width: 90%;
+    font-size: 16px;
+    padding: 8px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  button {
+    background: #333;
+    color: white;
+    border: none;
+  }
+
+  #status {
+    font-size: 12px;
+    margin-top: 6px;
+    color: orange;
+  }
 </style>
 </head>
 
 <body>
 
-<input id="scanInput" autofocus placeholder="Scan..." />
-<button id="clearBtn">Clear Table</button>
+<input id="scanInput" placeholder="Scan SKU / Barcode..." autofocus />
 
-<table>
-<tbody id="tbody"></tbody>
-</table>
+<select id="warehouse">
+  <option value="">Select Warehouse</option>
+  <option value="AB">AB</option>
+  <option value="ON">ON</option>
+</select>
+
+<input id="binInput" placeholder="Enter Bin" />
+
+<input id="lotInput" placeholder="Lot" />
+<input id="expInput" placeholder="Expiration (YYMMDD)" />
+<input id="qtyInput" type="number" value="1" min="1" />
+
+<button id="submitBtn">Submit Cycle Count</button>
+
+<div id="status"></div>
+
+<script src="config.js"></script>
 
 <script>
-let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
-const tbody = document.getElementById("tbody");
+const scanInput = document.getElementById("scanInput");
+const warehouse = document.getElementById("warehouse");
+const binInput = document.getElementById("binInput");
+const lotInput = document.getElementById("lotInput");
+const expInput = document.getElementById("expInput");
+const qtyInput = document.getElementById("qtyInput");
+const status = document.getElementById("status");
 
-function save() {
-  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
+// --------------------
+// BEEP
+// --------------------
+function beep(freq) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  o.frequency.value = freq;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 100);
 }
 
-function render() {
-  tbody.innerHTML = "";
+// --------------------
+// SCAN (simple passthrough)
+// --------------------
+scanInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    lotInput.focus();
+    beep(880);
+  }
+});
 
-  scannedItems.forEach((item, i) => {
-    const row = document.createElement("tr");
+// --------------------
+// SUBMIT TO SHEET
+// --------------------
+document.getElementById("submitBtn").onclick = async () => {
 
-    row.innerHTML = `
-      <td>${item.sku}</td>
-      <td>${item.lot}</td>
-      <td>${item.exp}</td>
-      <td>${item.qty}</td>
-      <td><button onclick="del(${i})">X</button></td>
-    `;
+  const payload = {
+    cycle: "Cycle Count",
+    warehouse: warehouse.value,
+    bin: binInput.value.trim(),
+    sku: scanInput.value.trim(),
+    lot: lotInput.value.trim(),
+    exp: expInput.value.trim(),
+    qty: parseInt(qtyInput.value || "0", 10)
+  };
 
-    tbody.appendChild(row);
-  });
-}
+  if (!payload.warehouse) {
+    status.textContent = "Select warehouse";
+    beep(150);
+    return;
+  }
 
-function del(i) {
-  scannedItems.splice(i,1);
-  save();
-  render();
-}
+  if (!payload.bin) {
+    status.textContent = "Enter bin";
+    beep(150);
+    return;
+  }
 
-document.getElementById("clearBtn").onclick = () => {
-  scannedItems = [];
-  save();
-  render();
+  if (!payload.sku) {
+    status.textContent = "Scan SKU";
+    beep(150);
+    return;
+  }
+
+  try {
+
+    const res = await fetch(CONFIG.CYCLE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const json = await res.json();
+
+    if (json.status === "ok") {
+
+      status.textContent = "Saved";
+      beep(880);
+
+      scanInput.value = "";
+      lotInput.value = "";
+      expInput.value = "";
+      qtyInput.value = "1";
+
+      scanInput.focus();
+    } else {
+      throw new Error(json.message);
+    }
+
+  } catch (err) {
+    status.textContent = "Error saving";
+    beep(150);
+  }
 };
-
-render();
 </script>
 
 </body>

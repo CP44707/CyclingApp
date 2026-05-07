@@ -164,7 +164,13 @@ function roundMinute(dateStr) {
 // ----------------------
 async function load() {
 
-  const res = await fetch(SHEET_CSV_URL + "?t=" + Date.now(), {
+  const url =
+    SHEET_CSV_URL +
+    (SHEET_CSV_URL.includes("?") ? "&" : "?") +
+    "t=" +
+    Date.now();
+
+  const res = await fetch(url, {
     cache: "no-store"
   });
 

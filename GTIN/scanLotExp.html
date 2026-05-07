@@ -184,8 +184,16 @@ function parse(raw) {
       let j = start;
 
       while (j < raw.length) {
+
+        const char = raw[j];
         const next = raw.slice(j, j + 2);
+
+        // stop on special / separator chars
+        if (!/[A-Za-z0-9]/.test(char)) break;
+
+        // stop on known GS1 AIs
         if (next === "17" || next === "11") break;
+
         j++;
       }
 

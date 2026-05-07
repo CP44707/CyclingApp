@@ -60,6 +60,7 @@
 <body>
 
 <input id="scanInput" autofocus placeholder="Scan barcode..." />
+<button id="useTableBtn">Use Table</button>
 <button id="manualBtn">Manual Entry</button>
 <button id="clearBtn">Clear Table</button>
 
@@ -98,6 +99,79 @@ let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 manualBtn.addEventListener("click", () => {
   window.location.href = "enterManually.html";
 });
+
+
+document.getElementById("useTableBtn").onclick = () => {
+
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,0.85)";
+  overlay.style.display = "flex";
+  overlay.style.flexDirection = "column";
+  overlay.style.justifyContent = "center";
+  overlay.style.alignItems = "center";
+  overlay.style.zIndex = "9999";
+
+  const box = document.createElement("div");
+  box.style.width = "90%";
+  box.style.background = "#222";
+  box.style.padding = "12px";
+  box.style.display = "flex";
+  box.style.flexDirection = "column";
+  box.style.gap = "8px";
+
+  const title = document.createElement("div");
+  title.textContent = "Select Table Mode";
+  title.style.textAlign = "center";
+  title.style.fontSize = "14px";
+
+  function makeBtn(label, target) {
+
+    const btn = document.createElement("button");
+
+    btn.textContent = label;
+
+    btn.style.padding = "10px";
+    btn.style.background = "#333";
+    btn.style.color = "white";
+    btn.style.border = "none";
+
+    btn.onclick = () => {
+
+      localStorage.setItem("activeTableMode", target);
+
+      window.location.href = target + ".html";
+    };
+
+    return btn;
+  }
+
+  const picking = makeBtn("Picking", "pick");
+  const cycling = makeBtn("Cycling", "cycle");
+  const receiving = makeBtn("Receiving", "receive");
+
+  const cancel = document.createElement("button");
+  cancel.textContent = "Cancel";
+  cancel.style.padding = "10px";
+  cancel.style.background = "#444";
+  cancel.style.color = "white";
+  cancel.style.border = "none";
+
+  cancel.onclick = () => {
+    document.body.removeChild(overlay);
+    input.focus();
+  };
+
+  box.appendChild(title);
+  box.appendChild(picking);
+  box.appendChild(cycling);
+  box.appendChild(receiving);
+  box.appendChild(cancel);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+};
 
 clearBtn.addEventListener("click", () => {
   scannedItems = [];

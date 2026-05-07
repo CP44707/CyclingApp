@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Receiving</title>
+
+<style>
+body{margin:0;width:3.75in;height:2.25in;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center}
+input,button{width:90%;padding:8px;font-size:16px;margin-top:4px;text-align:center}
+button{background:#333;color:#fff;border:none}
+table{width:95%;font-size:12px;border-collapse:collapse}
+td{border-bottom:1px solid #444;padding:4px;text-align:center}
+</style>
+</head>
+
+<body>
+
+<input id="scanInput" autofocus placeholder="Scan..." />
+<button id="clearBtn">Clear Table</button>
+
+<table>
+<tbody id="tbody"></tbody>
+</table>
+
+<script>
+let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+const tbody = document.getElementById("tbody");
+
+function save() {
+  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
+}
+
+function render() {
+  tbody.innerHTML = "";
+
+  scannedItems.forEach((item, i) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${item.sku}</td>
+      <td>${item.lot}</td>
+      <td>${item.exp}</td>
+      <td>${item.qty}</td>
+      <td><button onclick="del(${i})">X</button></td>
+    `;
+
+    tbody.appendChild(row);
+  });
+}
+
+function del(i) {
+  scannedItems.splice(i,1);
+  save();
+  render();
+}
+
+document.getElementById("clearBtn").onclick = () => {
+  scannedItems = [];
+  save();
+  render();
+};
+
+render();
+</script>
+
+</body>
+</html>

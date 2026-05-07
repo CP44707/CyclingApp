@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Picking</title>
+
+<style>
+  body {
+    margin: 0;
+    width: 3.75in;
+    height: 2.25in;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  input, button {
+    width: 90%;
+    font-size: 16px;
+    padding: 8px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  button {
+    background: #333;
+    color: white;
+    border: none;
+  }
+
+  table {
+    width: 95%;
+    font-size: 12px;
+    border-collapse: collapse;
+  }
+
+  td {
+    border-bottom: 1px solid #444;
+    padding: 4px;
+    text-align: center;
+  }
+</style>
+</head>
+
+<body>
+
+<input id="scanInput" placeholder="Scan..." autofocus />
+<button id="clearBtn">Clear Table</button>
+
+<table>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+const tbody = document.getElementById("tbody");
+const input = document.getElementById("scanInput");
+
+let scannedItems = JSON.parse(localStorage.getItem("cycleTable") || "[]");
+
+function save() {
+  localStorage.setItem("cycleTable", JSON.stringify(scannedItems));
+}
+
+function render() {
+  tbody.innerHTML = "";
+
+  scannedItems.forEach((item, index) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${item.sku}</td>
+      <td>${item.lot}</td>
+      <td>${item.exp}</td>
+      <td>${item.qty}</td>
+      <td><button onclick="del(${index})">X</button></td>
+    `;
+
+    tbody.appendChild(row);
+  });
+}
+
+function del(i) {
+  scannedItems.splice(i, 1);
+  save();
+  render();
+}
+
+document.getElementById("clearBtn").onclick = () => {
+  scannedItems = [];
+  save();
+  render();
+};
+
+render();
+</script>
+
+</body>
+</html>

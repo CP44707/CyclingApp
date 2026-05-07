@@ -98,7 +98,7 @@ th {
 <script>
 
 // ----------------------
-// CSV SOURCE (CHANGED ONLY THIS)
+// CSV SOURCE (UNCHANGED)
 // ----------------------
 const SHEET_CSV_URL = CONFIG.RECEIVE_CSV;
 
@@ -160,11 +160,14 @@ function roundMinute(dateStr) {
 }
 
 // ----------------------
-// LOAD CSV
+// LOAD CSV (🔥 FIXED CACHE ISSUE)
 // ----------------------
 async function load() {
 
-  const res = await fetch(SHEET_CSV_URL);
+  const res = await fetch(SHEET_CSV_URL + "?t=" + Date.now(), {
+    cache: "no-store"
+  });
+
   const text = await res.text();
 
   const parsed = Papa.parse(text, {

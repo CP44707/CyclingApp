@@ -5,6 +5,7 @@
 <title>Receiving Viewer</title>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="config.js"></script>
 
 <style>
 body {
@@ -96,7 +97,10 @@ th {
 
 <script>
 
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR8_SEEMLGeKrYaH0kxTaQLNZxhrDVB6tBSWpY4jSrq-mjaLkOFodq_RizYbESt5FOseq_4Y7goMsxz/pub?output=csv";
+// ----------------------
+// CSV SOURCE (CHANGED ONLY THIS)
+// ----------------------
+const SHEET_CSV_URL = CONFIG.RECEIVE_CSV;
 
 let rawData = [];
 let receipts = [];
@@ -110,7 +114,6 @@ function copy(v) {
 
 // ----------------------
 // RECEIPT TIME FORMAT
-// Apr 27, 12:16pm
 // ----------------------
 function formatReceiptTime(dateStr) {
   const d = new Date(dateStr);
@@ -132,7 +135,6 @@ function formatReceiptTime(dateStr) {
 
 // ----------------------
 // EXPIRATION FORMAT
-// 15-Jan-28
 // ----------------------
 function formatExpiry(dateStr) {
   const d = new Date(dateStr);
@@ -207,7 +209,6 @@ function buildReceipts() {
   receipts = Object.values(map)
     .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
     .slice(0, 10);
-    // last 10 receipts
 
   renderButtons();
 }

@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-
-<title>Receiving Submit</title>
+<title>Receive Submit</title>
 
 <style>
   body {
@@ -19,29 +18,33 @@
     align-items: center;
   }
 
-  button {
+  input, select, button {
     width: 90%;
     font-size: 16px;
-    padding: 10px;
-    margin-top: 8px;
+    padding: 8px;
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  button {
     background: #333;
     color: white;
     border: none;
   }
 
   #status {
-    margin-top: 10px;
-    font-size: 13px;
+    font-size: 12px;
+    margin-top: 6px;
     color: orange;
-    text-align: center;
   }
 </style>
 </head>
 
 <body>
 
-<button id="sendBtn">Send Receiving</button>
-<button onclick="window.location.href='scanner.html'">Back</button>
+<input id="poInput" placeholder="Enter PO Number" />
+
+<button id="submitBtn">Submit Receiving</button>
 
 <div id="status"></div>
 
@@ -49,53 +52,73 @@
 
 <script>
 
+const poInput = document.getElementById("poInput");
 const status = document.getElementById("status");
 
-// =========================
-// LOAD TABLE (same as scanner)
-// =========================
+// --------------------
+// BEEP
+// --------------------
+function beep(freq) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  o.frequency.value = freq;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(() => o.stop(), 100);
+}
+
+// --------------------
+// FORMAT EXP (YYMMDD -> YYYY-MM-DD)
+// --------------------
+function formatDate(input) {
+  if (!input) return "";
+
+  const s = String(input).trim();
+
+  if (s.length === 6 && /^\d+$/.test(s)) {
+    const yy = s.slice(0, 2);
+    const mm = s.slice(2, 4);
+    const dd = s.slice(4, 6);
+
+    return `20${yy}-${mm}-${dd}`;
+  }
+
+  return input;
+}
+
+// --------------------
+// LOAD TABLE
+// --------------------
 let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 
-// =========================
-// RECEIPT ID (persistent per session)
-// =========================
+// --------------------
+// RECEIPT ID
+// --------------------
 const receiptId = localStorage.getItem("receiptId") || crypto.randomUUID();
 localStorage.setItem("receiptId", receiptId);
 
-// =========================
-// PO + SESSION (optional fallback safety)
-// =========================
-const po = localStorage.getItem("poNumber") || "";
-const session = localStorage.getItem("receivingSession") || "";
+// --------------------
+// SUBMIT
+// --------------------
+document.getElementById("submitBtn").onclick = async () => {
 
-// =========================
-// FORMAT EXP (YYMMDD -> YYYY-MM-DD)
-// =========================
-function formatExp(exp) {
-  if (!exp || exp.length !== 6) return "";
+  const po = poInput.value.trim();
 
-  const yy = exp.slice(0,2);
-  const mm = exp.slice(2,4);
-  const dd = exp.slice(4,6);
-
-  return `20${yy}-${mm}-${dd}`;
-}
-
-// =========================
-// SEND
-// =========================
-document.getElementById("sendBtn").onclick = async () => {
-
-  if (!table.length) {
-    status.textContent = "No data to send";
+  if (!po) {
+    status.textContent = "Enter PO number";
+    beep(150);
     return;
   }
 
-  status.textContent = "Sending...";
-
-  const timestamp = new Date().toISOString();
+  if (!table.length) {
+    status.textContent = "No data in table";
+    beep(150);
+    return;
+  }
 
   try {
+
+    const timestamp = new Date().toISOString();
 
     const requests = table.map(item => {
 
@@ -105,10 +128,10 @@ document.getElementById("sendBtn").onclick = async () => {
           receiptId: receiptId,
           timestamp: timestamp,
           po: po,
-          session: session,
+          session: "",
           sku: item.sku,
           lot: item.lot,
-          exp: formatExp(item.exp),
+          exp: formatDate(item.exp),
           qty: item.qty
         }),
         mode: "no-cors",
@@ -121,15 +144,19 @@ document.getElementById("sendBtn").onclick = async () => {
 
     await Promise.all(requests);
 
-    status.textContent = "Sent successfully";
+    status.textContent = "Submitted";
+    beep(880);
 
-    // cleanup (match your existing flow style)
     localStorage.removeItem("cycleTable");
     localStorage.removeItem("receiptId");
 
+    setTimeout(() => {
+      window.location.href = "scanner.html";
+    }, 500);
+
   } catch (err) {
-    console.log(err);
-    status.textContent = "Send failed";
+    status.textContent = "Error submitting";
+    beep(150);
   }
 };
 

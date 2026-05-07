@@ -309,37 +309,177 @@ function editExp(index) {
 
   const current = scannedItems[index].exp || "";
 
-  let yy = "";
-  let mm = "";
-  let dd = "";
+  let currentYear = "2026";
+  let currentMonth = "01";
+  let currentDay = "01";
 
   if (current.length === 6) {
-    yy = current.slice(0,2);
-    mm = current.slice(2,4);
-    dd = current.slice(4,6);
+    currentYear = "20" + current.slice(0,2);
+    currentMonth = current.slice(2,4);
+    currentDay = current.slice(4,6);
   }
 
-  const year = prompt("Year (YY)", yy);
-  if (year === null) return;
+  const overlay = document.createElement("div");
 
-  const month = prompt("Month (MM)", mm);
-  if (month === null) return;
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,0.8)";
+  overlay.style.display = "flex";
+  overlay.style.flexDirection = "column";
+  overlay.style.justifyContent = "center";
+  overlay.style.alignItems = "center";
+  overlay.style.zIndex = "9999";
 
-  const day = prompt("Day (DD)", dd);
-  if (day === null) return;
+  const box = document.createElement("div");
 
-  scannedItems[index].exp =
-    year.padStart(2,"0") +
-    month.padStart(2,"0") +
-    day.padStart(2,"0");
+  box.style.background = "#222";
+  box.style.padding = "12px";
+  box.style.width = "90%";
+  box.style.display = "flex";
+  box.style.flexDirection = "column";
+  box.style.gap = "6px";
 
-  scannedItems[index].key =
-    `${scannedItems[index].sku}_${scannedItems[index].lot}_${scannedItems[index].exp}`;
+  const yearSel = document.createElement("select");
+  const monthSel = document.createElement("select");
+  const daySel = document.createElement("select");
 
-  saveTable();
-  renderTable();
+  yearSel.style.fontSize =
+  monthSel.style.fontSize =
+  daySel.style.fontSize = "16px";
 
-  input.focus();
+  yearSel.style.padding =
+  monthSel.style.padding =
+  daySel.style.padding = "8px";
+
+  // YEARS
+  for (let y = 2024; y <= 2045; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    yearSel.appendChild(opt);
+  }
+
+  // MONTHS
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+
+    opt.value = String(m).padStart(2, "0");
+    opt.textContent = String(m).padStart(2, "0");
+
+    monthSel.appendChild(opt);
+  }
+
+  function isLeapYear(y) {
+    return (
+      (y % 4 === 0 && y % 100 !== 0) ||
+      y % 400 === 0
+    );
+  }
+
+  function updateDays() {
+
+    const year = parseInt(yearSel.value);
+    const month = parseInt(monthSel.value);
+
+    let max = 31;
+
+    if ([4,6,9,11].includes(month)) {
+      max = 30;
+    }
+
+    if (month === 2) {
+      max = isLeapYear(year) ? 29 : 28;
+    }
+
+    const old = daySel.value;
+
+    daySel.innerHTML = "";
+
+    for (let d = 1; d <= max; d++) {
+
+      const opt = document.createElement("option");
+
+      opt.value = String(d).padStart(2, "0");
+      opt.textContent = String(d).padStart(2, "0");
+
+      daySel.appendChild(opt);
+    }
+
+    if (parseInt(old) <= max) {
+      daySel.value = old;
+    }
+  }
+
+  yearSel.value = currentYear;
+  monthSel.value = currentMonth;
+
+  updateDays();
+
+  daySel.value = currentDay;
+
+  yearSel.onchange = updateDays;
+  monthSel.onchange = updateDays;
+
+  const noExpBtn = document.createElement("button");
+
+  noExpBtn.textContent = "No Expiry";
+
+  noExpBtn.style.padding = "8px";
+  noExpBtn.style.background = "#333";
+  noExpBtn.style.color = "white";
+  noExpBtn.style.border = "none";
+
+  noExpBtn.onclick = () => {
+
+    scannedItems[index].exp = "";
+
+    scannedItems[index].key =
+      `${scannedItems[index].sku}_${scannedItems[index].lot}_${scannedItems[index].exp}`;
+
+    saveTable();
+    renderTable();
+
+    document.body.removeChild(overlay);
+
+    input.focus();
+  };
+
+  const saveBtn = document.createElement("button");
+
+  saveBtn.textContent = "Save";
+
+  saveBtn.style.padding = "8px";
+  saveBtn.style.background = "#333";
+  saveBtn.style.color = "white";
+  saveBtn.style.border = "none";
+
+  saveBtn.onclick = () => {
+
+    scannedItems[index].exp =
+      String(yearSel.value).slice(2) +
+      monthSel.value +
+      daySel.value;
+
+    scannedItems[index].key =
+      `${scannedItems[index].sku}_${scannedItems[index].lot}_${scannedItems[index].exp}`;
+
+    saveTable();
+    renderTable();
+
+    document.body.removeChild(overlay);
+
+    input.focus();
+  };
+
+  box.appendChild(yearSel);
+  box.appendChild(monthSel);
+  box.appendChild(daySel);
+  box.appendChild(noExpBtn);
+  box.appendChild(saveBtn);
+
+  overlay.appendChild(box);
+
+  document.body.appendChild(overlay);
 }
 
 function renderTable() {

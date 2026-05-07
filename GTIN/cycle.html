@@ -75,6 +75,24 @@ function beep(freq) {
 }
 
 // --------------------
+// DATE FORMAT (ADDED)
+// --------------------
+function formatDate(input) {
+  if (!input) return "";
+
+  const date = new Date(input);
+  if (isNaN(date.getTime())) return input;
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = months[date.getMonth()];
+  const year = String(date.getFullYear()).slice(-2);
+
+  return `${day}-${month}-${year}`;
+}
+
+// --------------------
 // LOAD TABLE
 // --------------------
 let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
@@ -106,7 +124,6 @@ document.getElementById("submitBtn").onclick = async () => {
 
     const requests = table.map(item => {
 
-      // ✅ FIXED FETCH ONLY (everything else unchanged)
       return fetch(CONFIG.CYCLE_URL, {
         method: "POST",
         body: JSON.stringify({
@@ -115,7 +132,7 @@ document.getElementById("submitBtn").onclick = async () => {
           bin: binInput.value.trim(),
           sku: item.sku,
           lot: item.lot,
-          exp: item.exp,
+          exp: formatDate(item.exp),
           qty: item.qty
         }),
         mode: "no-cors",
@@ -131,7 +148,6 @@ document.getElementById("submitBtn").onclick = async () => {
     status.textContent = "Submitted";
     beep(880);
 
-    // clear after successful submit
     localStorage.removeItem("cycleTable");
 
     setTimeout(() => {

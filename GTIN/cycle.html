@@ -106,9 +106,9 @@ document.getElementById("submitBtn").onclick = async () => {
 
     const requests = table.map(item => {
 
+      // ✅ FIXED FETCH ONLY (everything else unchanged)
       return fetch(CONFIG.CYCLE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cycle: "Cycle Count",
           warehouse: warehouse.value,
@@ -117,7 +117,11 @@ document.getElementById("submitBtn").onclick = async () => {
           lot: item.lot,
           exp: item.exp,
           qty: item.qty
-        })
+        }),
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain"
+        }
       });
 
     });

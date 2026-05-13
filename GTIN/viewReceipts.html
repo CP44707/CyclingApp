@@ -285,11 +285,10 @@ function buildReceipts() {
     }
   });
 
-  receipts = result
-    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 10);
+receipts = result
+  .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-  renderButtons();
+renderButtons();
 }
 
 // ----------------------

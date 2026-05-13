@@ -332,6 +332,11 @@ function openReceipt(r) {
 
     body.innerHTML += `
       <tr id="${rowId}">
+        
+        <td>${cell(x.SKU)}</td>
+        <td>${cell(x.Lot)}</td>
+        <td>${cell(formatExpiry(x["Expiration Date"]))}</td>
+        <td>${cell(x["Received Qty"])}</td>
         <td>
           <input
             type="checkbox"
@@ -343,10 +348,6 @@ function openReceipt(r) {
             "
           >
         </td>
-        <td>${cell(x.SKU)}</td>
-        <td>${cell(x.Lot)}</td>
-        <td>${cell(formatExpiry(x["Expiration Date"]))}</td>
-        <td>${cell(x["Received Qty"])}</td>
       </tr>
     `;
   });

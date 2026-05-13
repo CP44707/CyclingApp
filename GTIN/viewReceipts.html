@@ -11,8 +11,8 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: #f4f6f8;
-  color: #1f2937;
+  background: #1f232a;
+  color: #e5e7eb;
   padding: 20px;
 }
 
@@ -20,34 +20,34 @@ h2 {
   text-align: center;
   font-weight: 700;
   margin-bottom: 20px;
-  color: #111827;
+  color: #f3f4f6;
+  letter-spacing: 0.3px;
 }
 
 h3 {
   margin-top: 10px;
-  color: #111827;
+  color: #f3f4f6;
 }
 
 button {
-  background: #2563eb;
-  color: white;
-  border: none;
+  background: #2f3742;
+  color: #e5e7eb;
+  border: 1px solid #3b4452;
   padding: 10px 14px;
   margin: 6px 0;
   border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   transition: 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
 button:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
+  background: #3a4452;
+  border-color: #4b5563;
 }
 
 button:active {
-  transform: translateY(0px);
+  transform: scale(0.98);
 }
 
 #searchBox {
@@ -55,16 +55,17 @@ button:active {
   padding: 12px 14px;
   margin-bottom: 14px;
   border-radius: 10px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #3b4452;
   font-size: 15px;
   outline: none;
-  background: white;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  background: #262b33;
+  color: #e5e7eb;
+  box-sizing: border-box;
 }
 
 #searchBox:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  border-color: #5b6b82;
+  box-shadow: 0 0 0 3px rgba(91,107,130,0.25);
 }
 
 #receiptList {
@@ -75,40 +76,41 @@ button:active {
   height: 350px;
   overflow-y: auto;
 
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: #262b33;
+  border: 1px solid #3b4452;
   border-radius: 12px;
 
   padding: 12px;
   margin-bottom: 20px;
 
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 10px;
-  background: white;
+  background: #262b33;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
 
 th, td {
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #343b46;
   padding: 12px;
   text-align: center;
+  color: #e5e7eb;
 }
 
 th {
-  background: #f9fafb;
+  background: #2f3742;
   font-weight: 700;
-  color: #374151;
+  color: #f3f4f6;
 }
 
 tr:hover td {
-  background: #f3f4f6;
+  background: #2c3440;
 }
 
 .copyBtn {
@@ -117,17 +119,23 @@ tr:hover td {
   font-size: 12px;
   border-radius: 6px;
   cursor: pointer;
-  background: #e5e7eb;
-  color: #111827;
-  border: none;
+  background: #3a4452;
+  color: #e5e7eb;
+  border: 1px solid #4b5563;
 }
 
 .copyBtn:hover {
-  background: #d1d5db;
+  background: #465162;
 }
 
 .hidden {
   display: none;
+}
+
+/* subtle checkbox accent */
+input[type="checkbox"] {
+  transform: scale(1.1);
+  accent-color: #60a5fa;
 }
 </style>
 </head>

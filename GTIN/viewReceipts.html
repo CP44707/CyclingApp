@@ -77,6 +77,22 @@ th {
 
 <h2>Receiving History</h2>
 
+<input
+  type="text"
+  id="searchBox"
+  placeholder="Search PO..."
+  style="
+    width:100%;
+    padding:12px;
+    margin-bottom:14px;
+    border-radius:8px;
+    border:none;
+    font-size:16px;
+    box-sizing:border-box;
+  "
+  oninput="renderButtons()"
+/>
+
 <div id="receiptList"></div>
 
 <div id="detail" class="hidden">
@@ -284,16 +300,25 @@ function renderButtons() {
   const div = document.getElementById("receiptList");
   div.innerHTML = "";
 
-  receipts.forEach(r => {
+  const search =
+    (document.getElementById("searchBox")?.value || "")
+      .toLowerCase()
+      .trim();
 
-    const label = `${r.po} — ${formatReceiptTime(r.timestamp)}`;
+  receipts
+    .filter(r =>
+      r.po.toLowerCase().includes(search)
+    )
+    .forEach(r => {
 
-    const btn = document.createElement("button");
-    btn.innerText = label;
-    btn.onclick = () => openReceipt(r);
+      const label = `${r.po} — ${formatReceiptTime(r.timestamp)}`;
 
-    div.appendChild(btn);
-  });
+      const btn = document.createElement("button");
+      btn.innerText = label;
+      btn.onclick = () => openReceipt(r);
+
+      div.appendChild(btn);
+    });
 }
 
 // ----------------------

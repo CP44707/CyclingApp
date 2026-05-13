@@ -196,31 +196,80 @@ load();
 // ----------------------
 // GROUP RECEIPTS
 // ----------------------
+// ----------------------
+// GROUP RECEIPTS
+// ----------------------
 function buildReceipts() {
 
-  const map = {};
+  const grouped = {};
 
+  // First group by PO
   rawData.forEach(r => {
 
     const po = (r.PO || "").trim();
-    const ts = roundMinute(r.Timestamp);
+    const ts = new Date(r.Timestamp);
 
-    if (!po || !ts) return;
+    if (!po || isNaN(ts)) return;
 
-    const key = po + "|" + ts;
+    if (!grouped[po]) grouped[po] = [];
 
-    if (!map[key]) {
-      map[key] = {
-        po,
-        timestamp: ts,
-        rows: []
-      };
-    }
-
-    map[key].rows.push(r);
+    grouped[po].push({
+      raw: r,
+      time: ts
+    });
   });
 
-  receipts = Object.values(map)
+  const result = [];
+
+  // For each PO, sort by timestamp and group within 10 mins
+  Object.keys(grouped).forEach(po => {
+
+    const rows = grouped[po]
+      .sort((a, b) => a.time - b.time);
+
+    let current = null;
+
+    rows.forEach(item => {
+
+      if (!current) {
+        current = {
+          po,
+          timestamp: item.time.toISOString(),
+          rows: [item.raw],
+          lastTime: item.time
+        };
+
+        return;
+      }
+
+      const diffMinutes =
+        (item.time - current.lastTime) / 1000 / 60;
+
+      // same group if within 10 mins
+      if (diffMinutes <= 10) {
+
+        current.rows.push(item.raw);
+        current.lastTime = item.time;
+
+      } else {
+
+        result.push(current);
+
+        current = {
+          po,
+          timestamp: item.time.toISOString(),
+          rows: [item.raw],
+          lastTime: item.time
+        };
+      }
+    });
+
+    if (current) {
+      result.push(current);
+    }
+  });
+
+  receipts = result
     .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
     .slice(0, 10);
 

@@ -313,6 +313,9 @@ function cell(val) {
 // ----------------------
 // OPEN RECEIPT
 // ----------------------
+// ----------------------
+// OPEN RECEIPT
+// ----------------------
 function openReceipt(r) {
 
   document.getElementById("detail").classList.remove("hidden");
@@ -323,10 +326,23 @@ function openReceipt(r) {
   const body = document.getElementById("body");
   body.innerHTML = "";
 
-  r.rows.forEach(x => {
+  r.rows.forEach((x, i) => {
+
+    const rowId = `row_${i}`;
 
     body.innerHTML += `
-      <tr>
+      <tr id="${rowId}">
+        <td>
+          <input
+            type="checkbox"
+            onchange="
+              const row = document.getElementById('${rowId}');
+              row.style.background = this.checked
+                ? 'rgba(255,224,0,0.15)'
+                : '';
+            "
+          >
+        </td>
         <td>${cell(x.SKU)}</td>
         <td>${cell(x.Lot)}</td>
         <td>${cell(formatExpiry(x["Expiration Date"]))}</td>

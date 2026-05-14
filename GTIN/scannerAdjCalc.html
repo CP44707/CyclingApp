@@ -9,91 +9,118 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: rgb(0,0,0);
-      color: rgb(255,255,255);
-      padding: 24px;
-    }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #1f232a;
+  color: #e5e7eb;
+  padding: 20px;
+}
 
-    h2 {
-      color: rgb(255,224,0);
-      margin-bottom: 20px;
-    }
+h2 {
+  text-align: center;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #f3f4f6;
+  letter-spacing: 0.3px;
+}
 
-    h3 {
-      color: rgb(255,224,0);
-      margin-bottom: 12px;
-    }
+h3 {
+  margin-top: 10px;
+  color: #f3f4f6;
+}
 
-    button {
-      background: rgb(255,224,0);
-      color: rgb(0,0,0);
-      border: none;
-      padding: 12px 16px;
-      border-radius: 10px;
-      font-weight: 600;
-      margin: 6px 6px 6px 0;
-      cursor: pointer;
-      transition: 0.2s ease;
-    }
+button {
+  background: #2f3742;
+  color: #e5e7eb;
+  border: 1px solid #3b4452;
+  padding: 10px 14px;
+  margin: 6px 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.15s ease;
+}
 
-    button:hover {
-      filter: brightness(0.9);
-      transform: translateY(-1px);
-    }
+button:hover {
+  background: #3a4452;
+  border-color: #4b5563;
+}
 
-    input[type="file"] {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,224,0,0.3);
-      color: white;
-      padding: 10px;
-      border-radius: 8px;
-    }
+button:active {
+  transform: scale(0.98);
+}
 
-    #step1, #step2, #step3, #step4 {
-      margin-top: 20px;
-      padding: 16px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,224,0,0.15);
-      border-radius: 14px;
-    }
+input[type="file"] {
+  background: #262b33;
+  border: 1px solid #3b4452;
+  color: #e5e7eb;
+  padding: 10px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      overflow: hidden;
-      border-radius: 10px;
-    }
+#step1, #step2, #step3, #step4 {
+  margin-top: 20px;
+  background: #262b33;
+  border: 1px solid #3b4452;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+}
 
-    th {
-      background: rgba(255,224,0,0.15);
-      color: rgb(255,224,0);
-      text-align: left;
-      padding: 10px;
-      font-size: 14px;
-    }
+#status {
+  color: #cbd5e1;
+  margin-top: 10px;
+}
 
-    td {
-      padding: 10px;
-      border-bottom: 1px solid rgba(255,224,0,0.1);
-      color: rgba(255,255,255,0.85);
-    }
+#batchOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-    tr:hover td {
-      background: rgba(255,224,0,0.05);
-    }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  background: #262b33;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+}
 
-    #status {
-      color: rgba(255,255,255,0.7);
-      margin-top: 10px;
-    }
+th, td {
+  border-bottom: 1px solid #343b46;
+  padding: 12px;
+  text-align: left;
+  color: #e5e7eb;
+}
 
-    #batchOptions button {
-      display: inline-block;
-    }
+th {
+  background: #2f3742;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+tr:hover td {
+  background: #2c3440;
+}
+
+.copyBtn {
+  margin-left: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #3a4452;
+  color: #e5e7eb;
+  border: 1px solid #4b5563;
+}
+
+.copyBtn:hover {
+  background: #465162;
+}
   </style>
 </head>
 
@@ -349,8 +376,7 @@ function runCalculation(){
     return `
       <div style="display:flex;align-items:center;gap:8px;">
         <span>${safe}</span>
-        <button onclick="copyToClipboard('${String(safe).replace(/'/g,"\\'")}')"
-          style="padding:4px 8px;border-radius:6px;font-size:12px;">
+        <button class="copyBtn" onclick="copyToClipboard('${String(safe).replace(/'/g,"\\'")}')">
           Copy
         </button>
       </div>`;

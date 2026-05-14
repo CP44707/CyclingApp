@@ -3,6 +3,8 @@
 <head>
   <title>Scanner Adjustment Wizard</title>
 
+  <script src="config.js"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -223,7 +225,7 @@ function startFlow(){
 // =====================
 async function loadGoogleSheet(){
 
-  const res = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9buyeY2V9qHg10FJJ3JbuyV-o8xvbF2QEGSLgX-3cIdgwR7fDJoY_BLiiAOQYCUHv0qcQ3fMLVDv-/pub?output=csv");
+  const res = await fetch(CONFIG.CYCLE_CSV);
   const text = await res.text();
 
   const parsed = Papa.parse(text.trim(), {

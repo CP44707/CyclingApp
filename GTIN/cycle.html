@@ -61,6 +61,7 @@
 const warehouse = document.getElementById("warehouse");
 const binInput = document.getElementById("binInput");
 const status = document.getElementById("status");
+const submitBtn = document.getElementById("submitBtn");
 
 // --------------------
 // BEEP
@@ -104,7 +105,7 @@ let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 // --------------------
 // SUBMIT ALL ROWS
 // --------------------
-document.getElementById("submitBtn").onclick = async () => {
+submitBtn.onclick = async () => {
 
   if (!warehouse.value) {
     status.textContent = "Select warehouse";
@@ -126,10 +127,19 @@ document.getElementById("submitBtn").onclick = async () => {
 
   try {
 
-    const requests = table.map(item => {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
 
-      return fetch(CONFIG.CYCLE_URL, {
+    status.textContent = `Submitting ${table.length} rows...`;
+
+    // submit rows one at a time
+    for (const item of table) {
+
+      const response = await fetch(CONFIG.CYCLE_URL, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           cycle: "Cycle Count",
           warehouse: warehouse.value,
@@ -138,16 +148,13 @@ document.getElementById("submitBtn").onclick = async () => {
           lot: item.lot,
           exp: formatDate(item.exp),
           qty: item.qty
-        }),
-        mode: "no-cors",
-        headers: {
-          "Content-Type": "text/plain"
-        }
+        })
       });
 
-    });
-
-    await Promise.all(requests);
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+    }
 
     status.textContent = "Submitted";
     beep(880);
@@ -156,11 +163,17 @@ document.getElementById("submitBtn").onclick = async () => {
 
     setTimeout(() => {
       window.location.href = "scanner.html";
-    }, 500);
+    }, 1000);
 
   } catch (err) {
+
+    console.error(err);
+
     status.textContent = "Error submitting";
     beep(150);
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit Cycle Count";
   }
 };
 

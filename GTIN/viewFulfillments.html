@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Fulfillment Viewer</title>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -10,65 +11,93 @@
 <style>
 body {
   margin: 0;
-  font-family: Arial;
-  background: rgb(0,0,0);
-  color: rgb(255,224,0);
-  padding: 20px;
+  width: 3.75in;
+  min-height: 2.25in;
+  background: #111;
+  color: white;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 12px;
 }
 
 h2 {
+  font-size: 20px;
+  margin: 10px 0 6px 0;
+}
+
+input, button {
+  width: 90%;
+  font-size: 16px;
+  padding: 8px;
+  margin-top: 6px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 button {
-  background: rgb(255,224,0);
-  color: black;
+  background: #333;
+  color: white;
   border: none;
-  padding: 12px 14px;
-  margin: 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
 }
 
 button:hover {
-  filter: brightness(0.9);
+  background: #444;
 }
 
 #receiptList {
+  width: 90%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+#detail {
+  width: 90%;
+  margin-top: 10px;
+}
+
+#title {
+  text-align: center;
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 10px;
+  font-size: 12px;
 }
 
 th, td {
-  border: 1px solid rgb(255,224,0);
-  padding: 10px;
+  border: 1px solid #444;
+  padding: 6px;
   text-align: center;
 }
 
 th {
-  background: rgb(255,224,0);
-  color: black;
+  background: #333;
+  color: white;
 }
 
 .copyBtn {
-  margin-left: 6px;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 10px;
+  border-radius: 4px;
+  width: auto;
+  margin: 0;
 }
 
 .hidden {
   display: none;
+}
+
+#status {
+  font-size: 12px;
+  margin-top: 6px;
+  color: orange;
 }
 </style>
 </head>
@@ -76,6 +105,13 @@ th {
 <body>
 
 <h2>Fulfillment History</h2>
+
+<input
+  id="searchInput"
+  placeholder="Search SO Number"
+/>
+
+<div id="status">Loading...</div>
 
 <div id="receiptList"></div>
 
@@ -98,12 +134,19 @@ th {
 <script>
 
 // ----------------------
-// CSV SOURCE (ONLY CHANGE)
+// CSV SOURCE
 // ----------------------
 const SHEET_CSV_URL = CONFIG.PICK_CSV;
 
 let rawData = [];
 let receipts = [];
+
+// ----------------------
+// ELEMENTS
+// ----------------------
+const receiptList = document.getElementById("receiptList");
+const searchInput = document.getElementById("searchInput");
+const status = document.getElementById("status");
 
 // ----------------------
 // COPY
@@ -116,18 +159,25 @@ function copy(v) {
 // RECEIPT TIME FORMAT
 // ----------------------
 function formatReceiptTime(dateStr) {
+
   const d = new Date(dateStr);
+
   if (isNaN(d)) return dateStr;
 
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
 
   const month = months[d.getMonth()];
   const day = d.getDate();
 
   let hour = d.getHours();
+
   const min = String(d.getMinutes()).padStart(2,"0");
 
   const ampm = hour >= 12 ? "pm" : "am";
+
   hour = hour % 12 || 12;
 
   return `${month} ${day}, ${hour}:${min}${ampm}`;
@@ -140,7 +190,6 @@ function formatExpiry(dateStr) {
 
   if (!dateStr) return "";
 
-  // expected: YYYY-MM-DD
   const [year, month, day] = dateStr.split("-");
 
   const months = [
@@ -155,17 +204,22 @@ function formatExpiry(dateStr) {
 // ROUND TO 1 MIN WINDOW
 // ----------------------
 function roundMinute(dateStr) {
+
   const d = new Date(dateStr);
+
   if (isNaN(d)) return dateStr;
 
   d.setSeconds(0, 0);
+
   return d.toISOString();
 }
 
 // ----------------------
-// LOAD CSV (CACHE SAFE)
+// LOAD CSV
 // ----------------------
 async function load() {
+
+  status.textContent = "Loading...";
 
   const url =
     SHEET_CSV_URL +
@@ -187,6 +241,8 @@ async function load() {
   rawData = parsed.data;
 
   buildReceipts();
+
+  status.textContent = "";
 }
 
 load();
@@ -201,6 +257,7 @@ function buildReceipts() {
   rawData.forEach(r => {
 
     const so = (r.SO || "").trim();
+
     const ts = roundMinute(r.Timestamp);
 
     if (!so || !ts) return;
@@ -208,6 +265,7 @@ function buildReceipts() {
     const key = so + "|" + ts;
 
     if (!map[key]) {
+
       map[key] = {
         so,
         timestamp: ts,
@@ -219,42 +277,67 @@ function buildReceipts() {
   });
 
   receipts = Object.values(map)
-    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 10);
+    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   renderButtons();
 }
+
+// ----------------------
+// SEARCH
+// ----------------------
+searchInput.addEventListener("input", renderButtons);
 
 // ----------------------
 // RECEIPT BUTTONS
 // ----------------------
 function renderButtons() {
 
-  const div = document.getElementById("receiptList");
-  div.innerHTML = "";
+  receiptList.innerHTML = "";
 
-  receipts.forEach(r => {
+  const search = searchInput.value.trim().toLowerCase();
 
-    const label = `${r.so} — ${formatReceiptTime(r.timestamp)}`;
+  const filtered = receipts.filter(r =>
+    r.so.toLowerCase().includes(search)
+  );
+
+  filtered.slice(0, 25).forEach(r => {
+
+    const label =
+      `${r.so} — ${formatReceiptTime(r.timestamp)}`;
 
     const btn = document.createElement("button");
+
     btn.innerText = label;
+
     btn.onclick = () => openReceipt(r);
 
-    div.appendChild(btn);
+    receiptList.appendChild(btn);
   });
+
+  if (!filtered.length) {
+    receiptList.innerHTML =
+      `<div style="text-align:center;font-size:12px;color:orange;">
+        No Results
+      </div>`;
+  }
 }
 
 // ----------------------
 // COPY CELL
 // ----------------------
 function cell(val) {
+
   const safe = val ?? "";
 
   return `
-    <div style="display:flex;justify-content:center;align-items:center;gap:6px;">
+    <div style="display:flex;justify-content:center;align-items:center;gap:4px;">
       <span>${safe}</span>
-      <button class="copyBtn" onclick="copy('${String(safe).replace(/'/g,"\\'")}')">Copy</button>
+      <button
+        class="copyBtn"
+        onclick="copy('${String(safe).replace(/'/g,"\\'")}')"
+      >
+        Copy
+      </button>
     </div>
   `;
 }
@@ -264,12 +347,14 @@ function cell(val) {
 // ----------------------
 function openReceipt(r) {
 
-  document.getElementById("detail").classList.remove("hidden");
+  document.getElementById("detail")
+    .classList.remove("hidden");
 
   document.getElementById("title").innerText =
     `${r.so} — ${formatReceiptTime(r.timestamp)}`;
 
   const body = document.getElementById("body");
+
   body.innerHTML = "";
 
   r.rows.forEach(x => {

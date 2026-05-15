@@ -146,9 +146,11 @@ document.getElementById("useTableBtn").onclick = () => {
     btn.style.color = "white";
     btn.style.border = "none";
 
-    // 🔧 responsive sizing / prevent overflow
-    btn.style.flex = "1";
+    // 🔧 FIX: match Cancel sizing behavior but still allow shrink
+    btn.style.flex = "1 1 0";
     btn.style.minWidth = "0";
+
+    // keep text from forcing width expansion
     btn.style.fontSize = "clamp(10px, 3vw, 14px)";
     btn.style.whiteSpace = "nowrap";
     btn.style.overflow = "hidden";

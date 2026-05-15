@@ -131,6 +131,10 @@ tr:hover td {
 .skuHeader:hover td {
   background: #364152;
 }
+
+.detailsRow {
+  display: none;
+}
   </style>
 </head>
 
@@ -345,6 +349,18 @@ function buildBatchOptions(){
 }
 
 // =====================
+// TOGGLE DETAILS
+// =====================
+function toggleDetails(className){
+
+  const rows = document.querySelectorAll(`.${className}`);
+
+  rows.forEach(r => {
+    r.style.display = r.style.display === "table-row" ? "none" : "table-row";
+  });
+}
+
+// =====================
 // CORE LOGIC
 // =====================
 function runCalculation(){
@@ -375,10 +391,8 @@ function runCalculation(){
     })
     .filter(r => r.adj !== 0);
 
-  // SORT BY SKU
   rows.sort((a,b)=> a.item.localeCompare(b.item));
 
-  // GROUP BY SKU
   const grouped = {};
 
   rows.forEach(r => {
@@ -394,7 +408,7 @@ function runCalculation(){
     return `
       <div style="display:flex;align-items:center;gap:8px;">
         <span>${safe}</span>
-        <button class="copyBtn" onclick="copyToClipboard('${String(safe).replace(/'/g,"\\'")}')">
+        <button class="copyBtn" onclick="event.stopPropagation();copyToClipboard('${String(safe).replace(/'/g,"\\'")}')">
           Copy
         </button>
       </div>`;
@@ -404,35 +418,31 @@ function runCalculation(){
 
     const details = grouped[sku];
 
-    // SUMMARY
+    // NET TOTAL
+    const totalAdj = details.reduce((sum, r) => sum + r.adj, 0);
+
     let summary = "Details";
 
-    if (details.length === 1) {
-      const adj = details[0].adj;
-      summary = adj > 0 ? `+${adj}` : adj;
+    if (totalAdj !== 0) {
+      summary = totalAdj > 0 ? `+${totalAdj}` : totalAdj;
     }
 
-    const dropdownId = `dropdown_${index}`;
+    const detailClass = `details_${index}`;
 
-    // SKU HEADER
+    // HEADER
     tbody.innerHTML += `
-      <tr class="skuHeader"
-          onclick="
-            const el=document.getElementById('${dropdownId}');
-            el.style.display = el.style.display === 'none' ? 'table-row-group' : 'none';
-          ">
+      <tr class="skuHeader" onclick="toggleDetails('${detailClass}')">
         <td colspan="5">
           ${sku} (${summary})
         </td>
       </tr>
     `;
 
-    // DETAILS CONTAINER
-    tbody.innerHTML += `<tbody id="${dropdownId}" style="display:none;">`;
-
+    // DETAIL ROWS
     details.forEach(r => {
+
       tbody.innerHTML += `
-        <tr>
+        <tr class="${detailClass} detailsRow">
           <td>${cell(r.item)}</td>
           <td>${cell(r.lot)}</td>
           <td>${cell(formatDisplayDate(r.exp))}</td>
@@ -441,8 +451,6 @@ function runCalculation(){
         </tr>
       `;
     });
-
-    tbody.innerHTML += `</tbody>`;
   });
 
   document.getElementById("step4").style.display = "block";

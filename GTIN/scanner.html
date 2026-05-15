@@ -100,6 +100,7 @@ manualBtn.addEventListener("click", () => {
   window.location.href = "enterManually.html";
 });
 
+
 document.getElementById("useTableBtn").onclick = () => {
 
   const overlay = document.createElement("div");
@@ -108,7 +109,6 @@ document.getElementById("useTableBtn").onclick = () => {
   overlay.style.background = "rgba(0,0,0,0.85)";
   overlay.style.display = "flex";
   overlay.style.flexDirection = "column";
-  overlay.style.justifyContent = "center";
   overlay.style.alignItems = "center";
   overlay.style.zIndex = "9999";
 
@@ -122,14 +122,18 @@ document.getElementById("useTableBtn").onclick = () => {
   box.style.padding = "10px";
   box.style.display = "flex";
   box.style.flexDirection = "column";
-  box.style.alignItems = "center";
-  box.style.justifyContent = "space-between";
-  box.style.gap = "8px";
+  box.style.justifyContent = "space-around";
 
   const title = document.createElement("div");
-  title.textContent = "Select Table Mode";
+  title.textContent = "Purpose";
   title.style.textAlign = "center";
   title.style.fontSize = "14px";
+
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.flexDirection = "row";
+  row.style.justifyContent = "space-around";
+  row.style.width = "100%";
 
   function makeBtn(label, target) {
 
@@ -168,18 +172,18 @@ document.getElementById("useTableBtn").onclick = () => {
     input.focus();
   };
 
-  const btnGroup = document.createElement("div");
-  btnGroup.style.display = "flex";
-  btnGroup.style.gap = "8px";
-  btnGroup.style.justifyContent = "center";
-  btnGroup.style.flexWrap = "wrap";
+  const btnRow = document.createElement("div");
+  btnRow.style.display = "flex";
+  btnRow.style.flexDirection = "row";
+  btnRow.style.justifyContent = "space-around";
+  btnRow.style.width = "100%";
 
-  btnGroup.appendChild(picking);
-  btnGroup.appendChild(cycling);
-  btnGroup.appendChild(receiving);
+  btnRow.appendChild(picking);
+  btnRow.appendChild(cycling);
+  btnRow.appendChild(receiving);
 
   box.appendChild(title);
-  box.appendChild(btnGroup);
+  box.appendChild(btnRow);
   box.appendChild(cancel);
 
   overlay.appendChild(box);
@@ -541,19 +545,15 @@ function renderTable() {
       <td>${item.sku}</td>
 
       <td>
-        <button
-          onclick="editLot(${index})"
-          style="width:auto;padding:2px 6px;font-size:12px;"
-        >
+        <button onclick="editLot(${index})"
+          style="width:auto;padding:2px 6px;font-size:12px;">
           ${item.lot}
         </button>
       </td>
 
       <td>
-        <button
-          onclick="editExp(${index})"
-          style="width:auto;padding:2px 6px;font-size:12px;"
-        >
+        <button onclick="editExp(${index})"
+          style="width:auto;padding:2px 6px;font-size:12px;">
           ${formatExp(item.exp)}
         </button>
       </td>
@@ -561,7 +561,8 @@ function renderTable() {
       <td>${item.qty}</td>
 
       <td>
-        <button onclick="deleteRow(${index})" style="width:auto;padding:2px 6px;font-size:12px;">
+        <button onclick="deleteRow(${index})"
+          style="width:auto;padding:2px 6px;font-size:12px;">
           X
         </button>
       </td>

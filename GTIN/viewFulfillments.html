@@ -2,7 +2,6 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Fulfillment Viewer</title>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -11,83 +10,122 @@
 <style>
 body {
   margin: 0;
-  width: 3.75in;
-  min-height: 2.25in;
-  background: #111;
-  color: white;
-  font-family: sans-serif;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-bottom: 12px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #1f232a;
+  color: #e5e7eb;
+  padding: 20px;
 }
 
 h2 {
-  font-size: 20px;
-  margin: 10px 0 6px 0;
+  text-align: center;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #f3f4f6;
+  letter-spacing: 0.3px;
 }
 
-input, button {
-  width: 90%;
-  font-size: 16px;
-  padding: 8px;
-  margin-top: 6px;
-  text-align: center;
-  box-sizing: border-box;
+h3 {
+  margin-top: 10px;
+  color: #f3f4f6;
 }
 
 button {
-  background: #333;
-  color: white;
-  border: none;
+  background: #2f3742;
+  color: #e5e7eb;
+  border: 1px solid #3b4452;
+  padding: 10px 14px;
+  margin: 6px 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.15s ease;
 }
 
 button:hover {
-  background: #444;
+  background: #3a4452;
+  border-color: #4b5563;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+#searchBox {
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  border: 1px solid #3b4452;
+  font-size: 15px;
+  outline: none;
+  background: #262b33;
+  color: #e5e7eb;
+  box-sizing: border-box;
+}
+
+#searchBox:focus {
+  border-color: #5b6b82;
+  box-shadow: 0 0 0 3px rgba(91,107,130,0.25);
 }
 
 #receiptList {
-  width: 90%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-}
+  gap: 8px;
 
-#detail {
-  width: 90%;
-  margin-top: 10px;
-}
+  height: 350px;
+  overflow-y: auto;
 
-#title {
-  text-align: center;
-  font-size: 14px;
-  margin-bottom: 8px;
+  background: #262b33;
+  border: 1px solid #3b4452;
+  border-radius: 12px;
+
+  padding: 12px;
+  margin-bottom: 20px;
+
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  margin-top: 10px;
+  background: #262b33;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
 
 th, td {
-  border: 1px solid #444;
-  padding: 6px;
+  border-bottom: 1px solid #343b46;
+  padding: 12px;
   text-align: center;
+  color: #e5e7eb;
 }
 
 th {
-  background: #333;
-  color: white;
+  background: #2f3742;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+tr:hover td {
+  background: #2c3440;
 }
 
 .copyBtn {
-  padding: 2px 6px;
-  font-size: 10px;
-  border-radius: 4px;
-  width: auto;
-  margin: 0;
+  margin-left: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #3a4452;
+  color: #e5e7eb;
+  border: 1px solid #4b5563;
+}
+
+.copyBtn:hover {
+  background: #465162;
 }
 
 .hidden {
@@ -95,9 +133,14 @@ th {
 }
 
 #status {
-  font-size: 12px;
-  margin-top: 6px;
-  color: orange;
+  color: #cbd5e1;
+  margin-bottom: 12px;
+}
+
+/* subtle checkbox accent */
+input[type="checkbox"] {
+  transform: scale(1.1);
+  accent-color: #60a5fa;
 }
 </style>
 </head>
@@ -107,8 +150,10 @@ th {
 <h2>Fulfillment History</h2>
 
 <input
-  id="searchInput"
-  placeholder="Search SO Number"
+  type="text"
+  id="searchBox"
+  placeholder="Search SO..."
+  oninput="renderButtons()"
 />
 
 <div id="status">Loading...</div>
@@ -140,13 +185,6 @@ const SHEET_CSV_URL = CONFIG.PICK_CSV;
 
 let rawData = [];
 let receipts = [];
-
-// ----------------------
-// ELEMENTS
-// ----------------------
-const receiptList = document.getElementById("receiptList");
-const searchInput = document.getElementById("searchInput");
-const status = document.getElementById("status");
 
 // ----------------------
 // COPY
@@ -192,12 +230,14 @@ function formatExpiry(dateStr) {
 
   const [year, month, day] = dateStr.split("-");
 
+  if (!year || !month || !day) return dateStr;
+
   const months = [
     "Jan","Feb","Mar","Apr","May","Jun",
     "Jul","Aug","Sep","Oct","Nov","Dec"
   ];
 
-  return `${day}-${months[Number(month) - 1]}-${year.slice(-2)}`;
+  return `${day.padStart(2,"0")}-${months[Number(month) - 1]}-${year.slice(-2)}`;
 }
 
 // ----------------------
@@ -218,8 +258,6 @@ function roundMinute(dateStr) {
 // LOAD CSV
 // ----------------------
 async function load() {
-
-  status.textContent = "Loading...";
 
   const url =
     SHEET_CSV_URL +
@@ -242,7 +280,7 @@ async function load() {
 
   buildReceipts();
 
-  status.textContent = "";
+  document.getElementById("status").innerText = "";
 }
 
 load();
@@ -257,7 +295,6 @@ function buildReceipts() {
   rawData.forEach(r => {
 
     const so = (r.SO || "").trim();
-
     const ts = roundMinute(r.Timestamp);
 
     if (!so || !ts) return;
@@ -283,42 +320,49 @@ function buildReceipts() {
 }
 
 // ----------------------
-// SEARCH
-// ----------------------
-searchInput.addEventListener("input", renderButtons);
-
-// ----------------------
 // RECEIPT BUTTONS
 // ----------------------
 function renderButtons() {
 
-  receiptList.innerHTML = "";
+  const div = document.getElementById("receiptList");
 
-  const search = searchInput.value.trim().toLowerCase();
+  div.innerHTML = "";
 
-  const filtered = receipts.filter(r =>
-    r.so.toLowerCase().includes(search)
-  );
+  const search =
+    (document.getElementById("searchBox")?.value || "")
+      .toLowerCase()
+      .trim();
 
-  filtered.slice(0, 25).forEach(r => {
+  receipts
+    .filter(r =>
+      r.so.toLowerCase().includes(search)
+    )
+    .slice(0, 25)
+    .forEach(r => {
 
-    const label =
-      `${r.so} — ${formatReceiptTime(r.timestamp)}`;
+      const label =
+        `${r.so} — ${formatReceiptTime(r.timestamp)}`;
 
-    const btn = document.createElement("button");
+      const btn = document.createElement("button");
 
-    btn.innerText = label;
+      btn.innerText = label;
 
-    btn.onclick = () => openReceipt(r);
+      btn.onclick = () => openReceipt(r);
 
-    receiptList.appendChild(btn);
-  });
+      div.appendChild(btn);
+    });
 
-  if (!filtered.length) {
-    receiptList.innerHTML =
-      `<div style="text-align:center;font-size:12px;color:orange;">
+  if (!div.innerHTML.trim()) {
+
+    div.innerHTML = `
+      <div style="
+        text-align:center;
+        color:#cbd5e1;
+        padding:20px;
+      ">
         No Results
-      </div>`;
+      </div>
+    `;
   }
 }
 
@@ -330,12 +374,9 @@ function cell(val) {
   const safe = val ?? "";
 
   return `
-    <div style="display:flex;justify-content:center;align-items:center;gap:4px;">
+    <div style="display:flex;justify-content:center;align-items:center;gap:6px;">
       <span>${safe}</span>
-      <button
-        class="copyBtn"
-        onclick="copy('${String(safe).replace(/'/g,"\\'")}')"
-      >
+      <button class="copyBtn" onclick="copy('${String(safe).replace(/'/g,"\\'")}')">
         Copy
       </button>
     </div>

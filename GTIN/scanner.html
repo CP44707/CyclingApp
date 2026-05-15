@@ -184,6 +184,8 @@ document.getElementById("useTableBtn").onclick = () => {
   cancel.style.background = "#444";
   cancel.style.color = "white";
   cancel.style.border = "none";
+  cancel.style.width = "100%";
+  cancel.style.boxSizing = "border-box";
 
   cancel.onclick = () => {
     document.body.removeChild(overlay);

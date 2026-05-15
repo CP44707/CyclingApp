@@ -121,6 +121,16 @@ tr:hover td {
 .copyBtn:hover {
   background: #465162;
 }
+
+.skuHeader {
+  cursor: pointer;
+  background: #2b3340;
+  font-weight: 700;
+}
+
+.skuHeader:hover td {
+  background: #364152;
+}
   </style>
 </head>
 
@@ -335,7 +345,7 @@ function buildBatchOptions(){
 }
 
 // =====================
-// CORE LOGIC (UPDATED ONLY)
+// CORE LOGIC
 // =====================
 function runCalculation(){
 
@@ -368,6 +378,14 @@ function runCalculation(){
   // SORT BY SKU
   rows.sort((a,b)=> a.item.localeCompare(b.item));
 
+  // GROUP BY SKU
+  const grouped = {};
+
+  rows.forEach(r => {
+    if (!grouped[r.item]) grouped[r.item] = [];
+    grouped[r.item].push(r);
+  });
+
   const tbody = document.getElementById("results");
   tbody.innerHTML = "";
 
@@ -382,15 +400,49 @@ function runCalculation(){
       </div>`;
   }
 
-  rows.forEach(r=>{
+  Object.keys(grouped).forEach((sku, index) => {
+
+    const details = grouped[sku];
+
+    // SUMMARY
+    let summary = "Details";
+
+    if (details.length === 1) {
+      const adj = details[0].adj;
+      summary = adj > 0 ? `+${adj}` : adj;
+    }
+
+    const dropdownId = `dropdown_${index}`;
+
+    // SKU HEADER
     tbody.innerHTML += `
-      <tr>
-        <td>${cell(r.item)}</td>
-        <td>${cell(r.lot)}</td>
-        <td>${cell(formatDisplayDate(r.exp))}</td>
-        <td>${cell(r.bin)}</td>
-        <td>${cell(r.adj>0?("+"+r.adj):r.adj)}</td>
-      </tr>`;
+      <tr class="skuHeader"
+          onclick="
+            const el=document.getElementById('${dropdownId}');
+            el.style.display = el.style.display === 'none' ? 'table-row-group' : 'none';
+          ">
+        <td colspan="5">
+          ${sku} (${summary})
+        </td>
+      </tr>
+    `;
+
+    // DETAILS CONTAINER
+    tbody.innerHTML += `<tbody id="${dropdownId}" style="display:none;">`;
+
+    details.forEach(r => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${cell(r.item)}</td>
+          <td>${cell(r.lot)}</td>
+          <td>${cell(formatDisplayDate(r.exp))}</td>
+          <td>${cell(r.bin)}</td>
+          <td>${cell(r.adj > 0 ? ("+" + r.adj) : r.adj)}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML += `</tbody>`;
   });
 
   document.getElementById("step4").style.display = "block";

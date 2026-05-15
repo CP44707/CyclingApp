@@ -100,7 +100,6 @@ manualBtn.addEventListener("click", () => {
   window.location.href = "enterManually.html";
 });
 
-
 document.getElementById("useTableBtn").onclick = () => {
 
   const overlay = document.createElement("div");
@@ -122,9 +121,9 @@ document.getElementById("useTableBtn").onclick = () => {
   box.style.background = "#222";
   box.style.padding = "10px";
   box.style.display = "flex";
-  box.style.flexDirection = "row";
+  box.style.flexDirection = "column";
   box.style.alignItems = "center";
-  box.style.justifyContent = "space-around";
+  box.style.justifyContent = "space-between";
   box.style.gap = "8px";
 
   const title = document.createElement("div");
@@ -169,10 +168,18 @@ document.getElementById("useTableBtn").onclick = () => {
     input.focus();
   };
 
+  const btnGroup = document.createElement("div");
+  btnGroup.style.display = "flex";
+  btnGroup.style.gap = "8px";
+  btnGroup.style.justifyContent = "center";
+  btnGroup.style.flexWrap = "wrap";
+
+  btnGroup.appendChild(picking);
+  btnGroup.appendChild(cycling);
+  btnGroup.appendChild(receiving);
+
   box.appendChild(title);
-  box.appendChild(picking);
-  box.appendChild(cycling);
-  box.appendChild(receiving);
+  box.appendChild(btnGroup);
   box.appendChild(cancel);
 
   overlay.appendChild(box);
@@ -288,31 +295,28 @@ function parseRawGS1(raw) {
       let start = i + 2;
       let j = start;
 
-    while (j < data.length) {
+      while (j < data.length) {
 
-      const char = data[j];
-      const nextAI = data.slice(j, j + 2);
+        const char = data[j];
+        const nextAI = data.slice(j, j + 2);
 
-      // 🔥 separator / non-alphanumeric ends LOT
-      if (!/[A-Za-z0-9]/.test(char)) break;
+        if (!/[A-Za-z0-9]/.test(char)) break;
 
-      // 🔥 only treat as AI if it looks like a boundary
-      const isBoundary =
-        j === 0 || !/[A-Za-z0-9]/.test(data[j - 1]);
+        const isBoundary =
+          j === 0 || !/[A-Za-z0-9]/.test(data[j - 1]);
 
-      if (isBoundary &&
-          (nextAI === "01" || nextAI === "17" || nextAI === "11")) {
+        if (isBoundary &&
+            (nextAI === "01" || nextAI === "17" || nextAI === "11")) {
 
-        const after = data.slice(j + 2, j + 8);
+          const after = data.slice(j + 2, j + 8);
 
-        // only stop if it's a REAL AI (6 digits after)
-        if (/^\d{6}$/.test(after)) {
-          break;
+          if (/^\d{6}$/.test(after)) {
+            break;
+          }
         }
-      }
 
-      j++;
-    }
+        j++;
+      }
 
       result.lot = data.slice(start, j);
       i = j;
@@ -572,10 +576,8 @@ function renderTable() {
 // --------------------
 async function handleScan(value) {
 
-  // 🔥 ALWAYS reload latest sheet before processing
   await loadCSV();
 
-  // 🔥 reset every scan
   currentEntry = { gtin: null, lot: null, exp: null, sku: null };
 
   const parsed = parseBarcode(value);
@@ -600,7 +602,6 @@ async function handleScan(value) {
   if (parsed.exp) currentEntry.exp = parsed.exp;
   if (parsed.lot) currentEntry.lot = parsed.lot;
 
-  // 🔥 FULL SCAN COMPLETE → save
   if (currentEntry.lot) {
     addToTable({
       sku: currentEntry.sku,
@@ -612,8 +613,6 @@ async function handleScan(value) {
     return;
   }
 
-  // 🔥 PARTIAL SCAN: GTIN + SKU exists but missing LOT
-  // → go to LOT/EXP continuation screen
   window.location.href =
     "scanLotExp.html?sku=" + encodeURIComponent(currentEntry.sku) +
     "&gtin=" + encodeURIComponent(currentEntry.gtin);
@@ -645,8 +644,6 @@ loadCSV();
 renderTable();
 
 setInterval(() => input.focus(), 500);
-
-
 
 function handleReturnedLotExp() {
   const raw = localStorage.getItem("lotExpReturn");

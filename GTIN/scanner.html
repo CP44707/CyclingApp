@@ -114,11 +114,17 @@ document.getElementById("useTableBtn").onclick = () => {
   overlay.style.zIndex = "9999";
 
   const box = document.createElement("div");
-  box.style.width = "90%";
+  box.style.position = "fixed";
+  box.style.top = "0";
+  box.style.left = "0";
+  box.style.width = "100%";
+  box.style.height = "20vh";
   box.style.background = "#222";
-  box.style.padding = "12px";
+  box.style.padding = "10px";
   box.style.display = "flex";
-  box.style.flexDirection = "column";
+  box.style.flexDirection = "row";
+  box.style.alignItems = "center";
+  box.style.justifyContent = "space-around";
   box.style.gap = "8px";
 
   const title = document.createElement("div");

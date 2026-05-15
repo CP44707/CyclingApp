@@ -456,6 +456,36 @@ function runCalculation(){
   document.getElementById("step4").style.display = "block";
 }
 
+// =====================
+// AUTO REFRESH GOOGLE SHEET ON PAGE LOAD
+// =====================
+window.addEventListener("load", async () => {
+
+  try {
+
+    const res = await fetch(CONFIG.CYCLE_CSV + "?t=" + Date.now(), {
+      cache: "no-store"
+    });
+
+    const text = await res.text();
+
+    const parsed = Papa.parse(text.trim(), {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: h => h.trim()
+    });
+
+    cycleData = parsed.data;
+
+    console.log("Google Sheet refreshed on page load");
+
+  } catch (err) {
+
+    console.error("Failed to refresh Google Sheet", err);
+
+  }
+});
+
 </script>
 
 </body>

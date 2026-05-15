@@ -141,25 +141,30 @@ document.getElementById("useTableBtn").onclick = () => {
 
     btn.textContent = label;
 
-    btn.style.padding = "10px";
     btn.style.background = "#333";
     btn.style.color = "white";
     btn.style.border = "none";
 
-    // 🔧 FIX: match Cancel sizing behavior but still allow shrink
+    // 🔥 KEY FIX: remove internal width inflation
+    btn.style.padding = "0";
+    btn.style.height = "100%";
+
+    // make them evenly split space correctly
     btn.style.flex = "1 1 0";
     btn.style.minWidth = "0";
 
-    // keep text from forcing width expansion
+    // now re-add spacing safely inside layout instead of padding
+    btn.style.display = "flex";
+    btn.style.alignItems = "center";
+    btn.style.justifyContent = "center";
+
     btn.style.fontSize = "clamp(10px, 3vw, 14px)";
     btn.style.whiteSpace = "nowrap";
     btn.style.overflow = "hidden";
     btn.style.textOverflow = "ellipsis";
 
     btn.onclick = () => {
-
       localStorage.setItem("activeTableMode", target);
-
       window.location.href = target + ".html";
     };
 

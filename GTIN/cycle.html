@@ -32,6 +32,11 @@
     border: none;
   }
 
+  button:disabled {
+    background: #222;
+    color: #777;
+  }
+
   #status {
     font-size: 12px;
     margin-top: 6px;
@@ -61,6 +66,7 @@
 const warehouse = document.getElementById("warehouse");
 const binInput = document.getElementById("binInput");
 const status = document.getElementById("status");
+const submitBtn = document.getElementById("submitBtn");
 
 // --------------------
 // BEEP
@@ -106,6 +112,8 @@ let table = JSON.parse(localStorage.getItem("cycleTable") || "[]");
 // --------------------
 document.getElementById("submitBtn").onclick = async () => {
 
+  if (submitBtn.disabled) return;
+
   if (!warehouse.value) {
     status.textContent = "Select warehouse";
     beep(150);
@@ -125,6 +133,9 @@ document.getElementById("submitBtn").onclick = async () => {
   }
 
   try {
+
+    submitBtn.disabled = true;
+    status.textContent = "Submitting Cycle";
 
     // send rows one at a time
     for (const item of table) {
@@ -164,6 +175,7 @@ document.getElementById("submitBtn").onclick = async () => {
 
   } catch (err) {
     status.textContent = "Error submitting";
+    submitBtn.disabled = false;
     beep(150);
   }
 };
